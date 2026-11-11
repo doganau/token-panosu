@@ -1,0 +1,74 @@
+name: Doğrulama (CI)
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  dogrula:
+    name: Go İstemci + Worker Paket Kontrolü
+    runs-on: ubuntu-latest
+    steps:
+      - name: Kaynak kodunu indir
+        uses: actions/checkout@v4
+
+      - name: Go ortamını kur
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: false
+
+      - name: Node.js ortamını kur
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Node bağımlılıklarını yükle
+        run: npm ci
+
+      - name: Betik sözdizimi kontrolleri
+        run: |
+          bash -n araclar/kolay-kurulum.sh
+          sh -n araclar/derle.sh
+          sh -n istemci/kur.sh
+          python3 -m py_compile araclar/imzala.py
+
+      - name: Go birim testlerini çalıştır
+        working-directory: go
+        run: go test -v ./...
+
+      - name: Sunucu ve fiyatlandırma birim testlerini çalıştır
+        run: node --test src/*.test.mjs
+
+      - name: İstemci ikililerini çapraz derle (macOS / Linux / Windows)
+        run: |
+          TOKEN_PANOSU_ACIK_N=devre-disi sh araclar/derle.sh
+          python3 araclar/imzala.py imzasiz
+
+      - name: Web arayüzü satır içi JavaScript sözdizimi kontrolü
+        run: |
+          python3 -c '
+          import re, pathlib, subprocess, tempfile
+          html = pathlib.Path("src/app.html").read_text(encoding="utf-8")
+          blocks = re.findall(r"<script[^>]*>(.*?)</script>", html, re.S)
+          assert len(blocks) >= 2, "Beklenen script blokları bulunamadı"
+          for idx, b in enumerate(blocks):
+              with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False, encoding="utf-8") as f:
+                  f.write(b)
+                  p = f.name
+              r = subprocess.run(["node", "--check", p], capture_output=True, text=True)
+              pathlib.Path(p).unlink()
+              if r.returncode != 0:
+                  raise SystemExit(f"src/app.html script #{idx} hatası:\n{r.stderr}")
+          print(f"src/app.html içindeki {len(blocks)} script bloğu doğrulandı.")
+          '
+
+      - name: Cloudflare Worker paketleme (dry-run) kontrolü
+        run: |
+          if [ ! -f wrangler.toml ]; then
+            cp wrangler.toml.ornek wrangler.toml
+          fi
+          ./node_modules/.bin/wrangler deploy --dry-run --outdir /tmp/tp-ci-dry
+          rm -rf /tmp/tp-ci-dry

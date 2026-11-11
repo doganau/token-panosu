@@ -1,0 +1,33 @@
+{
+  "name": "token-panosu",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Claude Code, OpenAI Codex CLI, Google Gemini CLI ve Antigravity için sıfır maliyetli, izometrik canlı ofis simülasyonlu açık kaynak ekip kota ve token panosu.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/doganau/token-panosu.git"
+  },
+  "scripts": {
+    "kurulum": "bash araclar/kolay-kurulum.sh",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "derle": "sh araclar/derle.sh",
+    "imzala": "python3 araclar/imzala.py imzala",
+    "sema": "wrangler d1 execute token-panosu --remote --file=schema_tam.sql",
+    "test": "node --test src/*.test.mjs && (cd go && go test -v ./...)"
+  },
+  "keywords": [
+    "claude-code",
+    "codex-cli",
+    "gemini-cli",
+    "antigravity",
+    "token-tracker",
+    "cloudflare-workers",
+    "cloudflare-d1",
+    "dashboard"
+  ],
+  "devDependencies": {
+    "wrangler": "^4.159.0"
+  }
+}

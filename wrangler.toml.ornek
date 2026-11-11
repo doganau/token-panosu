@@ -1,0 +1,26 @@
+# Token Panosu — Cloudflare Workers yapılandırma şablonu
+# Otomatik kurulum (`npm run kurulum`) bu şablondan kendi `wrangler.toml` dosyanızı üretir.
+# Elle kurulum yapıyorsanız bu dosyayı `wrangler.toml` olarak kopyalayıp `database_id` alanını doldurun.
+
+name = "token-panosu"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+workers_dev = true
+
+# İstemci ikilileri: `araclar/derle.sh` tarafından `dist/indir` altına üretilir
+[assets]
+directory = "./dist"
+
+[[rules]]
+type = "Text"
+globs = ["**/*.html", "**/*.sh", "**/*.ps1"]
+fallthrough = false
+
+[[d1_databases]]
+binding = "DB"
+database_name = "token-panosu"
+database_id = "BURAYA_D1_VERITABANI_KIMLIGI"
+
+# Resmî model fiyat listesi günde bir kez otomatik yenilenir (03:23 UTC)
+[triggers]
+crons = ["23 3 * * *"]

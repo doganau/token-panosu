@@ -1,0 +1,10 @@
+.wrangler
+.dev.vars
+.derle.env
+.impeccable
+.claude
+.DS_Store
+.imza-anahtari.pem
+node_modules
+dist
+go/tokenpanosu
