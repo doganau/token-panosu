@@ -862,9 +862,8 @@ func agyUserStatusCoz(disB64 []byte, mtSn, simdi int64) (eposta string, limitR m
 		return "", nil, false, 0
 	}
 
-	var wPct, hPct, claudePct, geminiPct float64
-	var wReset, hReset, gecmisWReset int64
-	var wVar, hVar, claudeVar, geminiVar bool
+	var gemW, gem5, ucpW, ucp5, genelW, genel5 agyKovaDegeri
+	var gecmisGemWReset, gecmisGenelWReset int64
 
 	for b := icPB; len(b) > 0; {
 		no, tel, deg, _, _, n, tamam := pbAlanOku(b)
@@ -902,10 +901,18 @@ func agyUserStatusCoz(disB64 []byte, mtSn, simdi int64) (eposta string, limitR m
 						kalan, resetSn, gecerli := agyKotaBilgisiCoz(kotaHam)
 						if gecerli && resetSn > mtSn {
 							sure := resetSn - mtSn
-							// 7 günlük pencere sıfırlama saati: pencere geçmiş olsa bile son 14 gün içindeyse bir sonraki haftalık sıfırlamayı verir
+							geminiMi := strings.Contains(etiket, "gemini")
+							ucpMi := strings.Contains(etiket, "claude") || strings.Contains(etiket, "gpt") ||
+								strings.Contains(etiket, "sonnet") || strings.Contains(etiket, "opus") || strings.Contains(etiket, "haiku")
+
+							// 7 günlük pencere sıfırlama saati: öncelikle Gemini haftalık havuzunun sıfırlama anı izlenir
 							if sure > 8*3600 && sure <= 14*86400 && (simdi <= 0 || simdi-resetSn <= 14*86400) {
-								if resetSn > gecmisWReset {
-									gecmisWReset = resetSn
+								if geminiMi {
+									if resetSn > gecmisGemWReset {
+										gecmisGemWReset = resetSn
+									}
+								} else if resetSn > gecmisGenelWReset {
+									gecmisGenelWReset = resetSn
 								}
 							}
 							// Kullanım yüzdesi için yalnızca sıfırlanma zamanı henüz geçmemiş (aktif pencere) kotaları kabul et
@@ -917,18 +924,22 @@ func agyUserStatusCoz(disB64 []byte, mtSn, simdi int64) (eposta string, limitR m
 									kullanim = 100
 								}
 								if sure <= 8*3600 {
-									if !hVar || kullanim > hPct {
-										hVar, hPct, hReset = true, kullanim, resetSn
+									switch {
+									case geminiMi:
+										agyKovaGuncelle(&gem5, kullanim, resetSn)
+									case ucpMi:
+										agyKovaGuncelle(&ucp5, kullanim, resetSn)
+									default:
+										agyKovaGuncelle(&genel5, kullanim, resetSn)
 									}
 								} else if sure <= 14*86400 {
-									if !wVar || kullanim > wPct {
-										wVar, wPct, wReset = true, kullanim, resetSn
-									}
-									if strings.Contains(etiket, "claude") && (!claudeVar || kullanim > claudePct) {
-										claudeVar, claudePct = true, kullanim
-									}
-									if strings.Contains(etiket, "gemini") && (!geminiVar || kullanim > geminiPct) {
-										geminiVar, geminiPct = true, kullanim
+									switch {
+									case geminiMi:
+										agyKovaGuncelle(&gemW, kullanim, resetSn)
+									case ucpMi:
+										agyKovaGuncelle(&ucpW, kullanim, resetSn)
+									default:
+										agyKovaGuncelle(&genelW, kullanim, resetSn)
 									}
 								}
 							}
@@ -942,22 +953,59 @@ func agyUserStatusCoz(disB64 []byte, mtSn, simdi int64) (eposta string, limitR m
 	}
 
 	rm := map[string]string{}
-	if wVar {
-		rm["seven_day.used_percentage"] = strconv.FormatFloat(wPct, 'f', -1, 64)
-		rm["seven_day.resets_at"] = strconv.FormatInt(wReset, 10)
-		haftaReset = sonrakiHaftaReset(wReset, simdi)
-	} else if gecmisWReset > 0 {
-		haftaReset = sonrakiHaftaReset(gecmisWReset, simdi)
+	anaW := gemW
+	if !anaW.varMi {
+		if genelW.varMi {
+			anaW = genelW
+		} else {
+			anaW = ucpW
+		}
 	}
-	if hVar {
-		rm["five_hour.used_percentage"] = strconv.FormatFloat(hPct, 'f', -1, 64)
-		rm["five_hour.resets_at"] = strconv.FormatInt(hReset, 10)
+	if anaW.varMi {
+		rm["seven_day.used_percentage"] = strconv.FormatFloat(anaW.pct, 'f', -1, 64)
+		rm["seven_day.resets_at"] = strconv.FormatInt(anaW.reset, 10)
+		haftaReset = sonrakiHaftaReset(anaW.reset, simdi)
+	} else if gecmisGemWReset > 0 {
+		haftaReset = sonrakiHaftaReset(gecmisGemWReset, simdi)
+	} else if gecmisGenelWReset > 0 {
+		haftaReset = sonrakiHaftaReset(gecmisGenelWReset, simdi)
 	}
-	if claudeVar {
-		rm["agy_claude.used_percentage"] = strconv.FormatFloat(claudePct, 'f', -1, 64)
+
+	ana5 := gem5
+	if !ana5.varMi {
+		if genel5.varMi {
+			ana5 = genel5
+		} else {
+			ana5 = ucp5
+		}
 	}
-	if geminiVar {
-		rm["agy_gemini.used_percentage"] = strconv.FormatFloat(geminiPct, 'f', -1, 64)
+	if ana5.varMi {
+		rm["five_hour.used_percentage"] = strconv.FormatFloat(ana5.pct, 'f', -1, 64)
+		rm["five_hour.resets_at"] = strconv.FormatInt(ana5.reset, 10)
+	}
+
+	if gemW.varMi {
+		rm["agy_gemini.used_percentage"] = strconv.FormatFloat(gemW.pct, 'f', -1, 64)
+		rm["agy_gemini.resets_at"] = strconv.FormatInt(gemW.reset, 10)
+	} else if gem5.varMi {
+		rm["agy_gemini.used_percentage"] = strconv.FormatFloat(gem5.pct, 'f', -1, 64)
+		rm["agy_gemini.resets_at"] = strconv.FormatInt(gem5.reset, 10)
+	}
+	if gem5.varMi {
+		rm["agy_gemini_5h.used_percentage"] = strconv.FormatFloat(gem5.pct, 'f', -1, 64)
+		rm["agy_gemini_5h.resets_at"] = strconv.FormatInt(gem5.reset, 10)
+	}
+
+	if ucpW.varMi {
+		rm["agy_claude.used_percentage"] = strconv.FormatFloat(ucpW.pct, 'f', -1, 64)
+		rm["agy_claude.resets_at"] = strconv.FormatInt(ucpW.reset, 10)
+	} else if ucp5.varMi {
+		rm["agy_claude.used_percentage"] = strconv.FormatFloat(ucp5.pct, 'f', -1, 64)
+		rm["agy_claude.resets_at"] = strconv.FormatInt(ucp5.reset, 10)
+	}
+	if ucp5.varMi {
+		rm["agy_claude_5h.used_percentage"] = strconv.FormatFloat(ucp5.pct, 'f', -1, 64)
+		rm["agy_claude_5h.resets_at"] = strconv.FormatInt(ucp5.reset, 10)
 	}
 	return eposta, rm, len(rm) > 0, haftaReset
 }
@@ -972,6 +1020,32 @@ type agyDurumAdayi struct {
 
 func agyDurumAdaylariOku(simdi int64) []agyDurumAdayi {
 	var sonuc []agyDurumAdayi
+
+	// 0. Antigravity 2.0 resmi agy CLI statusLine okuması (~/.token-panosu/limit_agy.json)
+	if agyLim, ok := agyLimitOku(); ok {
+		mtSn := agyLim.T
+		if simdi > 0 && mtSn > simdi {
+			mtSn = simdi
+		}
+		var hReset int64
+		if agyLim.HaftaReset > 0 && (simdi <= 0 || simdi-mtSn <= 14*86400) {
+			hReset = sonrakiHaftaReset(agyLim.HaftaReset, simdi)
+		}
+		aktifR := agyLimitAktifFiltrele(agyLim, simdi)
+		if agyLim.Eposta != "" || len(aktifR) > 0 || hReset > 0 {
+			aday := agyDurumAdayi{
+				eposta:     agyLim.Eposta,
+				mtNano:     mtSn * 1e9,
+				haftaReset: hReset,
+			}
+			if len(aktifR) > 0 {
+				aday.limitT = mtSn
+				aday.limitR = aktifR
+			}
+			sonuc = append(sonuc, aday)
+		}
+	}
+
 	gorulen := map[string]bool{}
 	for _, kok := range agyUygulamaDizinleri() {
 		g := gercekYol(kok)

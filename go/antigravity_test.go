@@ -347,8 +347,11 @@ func TestAgySqliteTasmaKotaVeHesapOnceligi(t *testing.T) {
 	if !varMi {
 		t.Fatalf("aktif Antigravity kotası okunmalıydı")
 	}
-	if got := string(lim.R["seven_day.used_percentage"]); got != "62" {
-		t.Fatalf("haftalık kota hatalı: got=%q want=62 (tüm=%v)", got, lim.R)
+	if got := string(lim.R["seven_day.used_percentage"]); got != "25" {
+		t.Fatalf("haftalık kota Gemini havuzunu önceliklendirmeli: got=%q want=25 (tüm=%v)", got, lim.R)
+	}
+	if got := string(lim.R["seven_day.resets_at"]); got != strconv.FormatInt(simdi+5*86400, 10) {
+		t.Fatalf("haftalık sıfırlama Gemini havuzunu önceliklendirmeli: got=%q", got)
 	}
 	if got := string(lim.R["five_hour.used_percentage"]); got != "20" {
 		t.Fatalf("5 saatlik kota hatalı: got=%q want=20", got)
@@ -707,5 +710,119 @@ func TestCodexArsivReasoningVeGeminiJSONL(t *testing.T) {
 	}
 	if arsivSonrasiMesaj != 2 {
 		t.Fatalf("arşivlenen Codex oturumu sayılmaya devam etmeliydi, gelen=%d", arsivSonrasiMesaj)
+	}
+}
+
+func TestAgyStatusLineKotaVeAyarKoruma(t *testing.T) {
+	eskiDizin, eskiTestModu := dizin, testModu
+	dizin = t.TempDir()
+	testModu = true
+	defer func() {
+		dizin = eskiDizin
+		testModu = eskiTestModu
+	}()
+
+	ev := t.TempDir()
+	t.Setenv("HOME", ev)
+	t.Setenv("USERPROFILE", ev)
+	agyCliDir := filepath.Join(ev, ".gemini", "antigravity-cli")
+	t.Setenv(testAgyCliDizin, agyCliDir)
+
+	simdi := int64(1794448616) // 2026-11-12T01:56:56Z
+	girdi := []byte(`{
+		"product": "antigravity",
+		"email": "ornek@ekip.com",
+		"plan_tier": "pro",
+		"quota": {
+			"gemini-weekly": { "remaining_fraction": 0.48571146, "reset_time": "2026-11-14T08:44:04Z", "reset_in_seconds": 197228 },
+			"gemini-5h":     { "remaining_fraction": 0.6231997,  "reset_time": "2026-11-12T03:26:45Z", "reset_in_seconds": 5389 },
+			"3p-weekly":     { "remaining_fraction": 0.02278612, "reset_time": "2026-11-17T12:09:53Z", "reset_in_seconds": 468777 },
+			"3p-5h":         { "remaining_fraction": 0.87698054, "reset_time": "2026-11-12T05:45:51Z", "reset_in_seconds": 13735 }
+		}
+	}`)
+	coz, ok := agyStatusCoz(girdi, simdi)
+	if !ok {
+		t.Fatal("agyStatusCoz geçerli dönmeliydi")
+	}
+	if coz.Eposta != "ornek@ekip.com" || coz.HaftaReset != 1794645844 {
+		t.Fatalf("eposta veya Gemini haftalık sıfırlama hatalı: eposta=%q reset=%d", coz.Eposta, coz.HaftaReset)
+	}
+	if coz.R["seven_day.used_percentage"] != "51.4" || coz.R["seven_day.resets_at"] != "1794645844" {
+		t.Fatalf("seven_day Gemini havuzundan gelmeliydi: %v", coz.R)
+	}
+	if coz.R["five_hour.used_percentage"] != "37.7" || coz.R["agy_gemini_5h.used_percentage"] != "37.7" {
+		t.Fatalf("five_hour Gemini 5s havuzundan gelmeliydi: %v", coz.R)
+	}
+	if coz.R["agy_claude.used_percentage"] != "97.7" || coz.R["agy_claude_5h.used_percentage"] != "12.3" {
+		t.Fatalf("3p havuz yüzdeleri hatalı: %v", coz.R)
+	}
+
+	// Kota tamamen tükendiğinde remaining_fraction alanı protobuf JSON'da atlanabilir -> %100 sayılmalı
+	tukenen := []byte(`{"email":"ornek@ekip.com","quota":{"gemini-weekly":{"reset_time":"2026-11-14T08:44:04Z"}}}`)
+	cozTukenen, okT := agyStatusCoz(tukenen, simdi)
+	if !okT || cozTukenen.R["seven_day.used_percentage"] != "100" {
+		t.Fatalf("tükenen kota %%100 olmalıydı: %+v", cozTukenen)
+	}
+
+	// Disk üzerinden geminiHesapLimitVeResetOku entegrasyonu
+	agyLimitYaz(coz)
+	hHex, ep, lim, limVar, hReset := geminiHesapLimitVeResetOku(simdi)
+	if !limVar || ep != "ornek@ekip.com" || hHex != hesapOzeti("gemini", "ornek@ekip.com") || hReset != 1794645844 {
+		t.Fatalf("geminiHesapLimitVeResetOku hatalı: limVar=%v ep=%q hReset=%d", limVar, ep, hReset)
+	}
+	if string(lim.R["seven_day.used_percentage"]) != "51.4" || string(lim.R["agy_claude.used_percentage"]) != "97.7" {
+		t.Fatalf("limit haritası hatalı: %v", lim.R)
+	}
+
+	// settings.json kurulumu, ayarYaz koruması ve geri yükleme
+	_ = os.MkdirAll(agyCliDir, 0o700)
+	ayarYol := filepath.Join(agyCliDir, "settings.json")
+	_ = os.WriteFile(ayarYol, []byte(`{"statusLine":{"type":"command","command":"echo ozel"}}`), 0o600)
+	_ = ayarYaz(Ayar{URL: "https://ornek.com", Cihaz: strings.Repeat("a", 32), Etiket: "test", UyariKuruldu: []string{"/ornek/.claude"}})
+
+	agyDurumSatiriKur()
+	okunanAyar, err := ayarOku()
+	if err != nil {
+		t.Fatalf("ayarOku hatası: %v", err)
+	}
+	if err := ayarYaz(okunanAyar); err != nil {
+		t.Fatal(err)
+	}
+	okunanAyar2, _ := ayarOku()
+	if len(okunanAyar2.UyariKuruldu) != 1 || len(okunanAyar2.AgyDurumKuruldu) != 1 {
+		t.Fatalf("ayarYaz UyariKuruldu ve AgyDurumKuruldu alanlarını korumalıydı: %+v", okunanAyar2)
+	}
+	if onceki := agyOncekiKomut(dizinAnahtari(agyCliDir)); onceki != "echo ozel" {
+		t.Fatalf("önceki statusLine komutu korunmalıydı: got=%q", onceki)
+	}
+
+	agyDurumSatiriKaldir()
+	geriYuklenen, _ := os.ReadFile(ayarYol)
+	if !strings.Contains(string(geriYuklenen), "echo ozel") || strings.Contains(string(geriYuklenen), agyDurumAnahtar) {
+		t.Fatalf("kaldir sonrası önceki statusLine geri gelmeliydi: %s", string(geriYuklenen))
+	}
+}
+
+func TestAgyPtyCalistir(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix kabuk betiği testi")
+	}
+	gec := t.TempDir()
+	isaret := filepath.Join(gec, "okundu")
+	betik := filepath.Join(gec, "sahte-agy.sh")
+	icerik := "#!/bin/sh\ntouch \"" + isaret + "\"\nread -r _\nexit 0\n"
+	if err := os.WriteFile(betik, []byte(icerik), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	bas := time.Now()
+	agyPtyCalistir(betik, gec, 4*time.Second, func() bool {
+		_, err := os.Stat(isaret)
+		return err == nil
+	})
+	if _, err := os.Stat(isaret); err != nil {
+		t.Fatalf("PTY içindeki betik çalışmalıydı: %v", err)
+	}
+	if gecen := time.Since(bas); gecen > 3*time.Second {
+		t.Fatalf("PTY hazir() sonrası hızlıca kapanmalıydı: %v", gecen)
 	}
 }

@@ -1267,6 +1267,10 @@ async function handleIngest(req, env, ctx) {
   const gelenHaftaReset = {};
   if (body.hr && typeof body.hr === "object" && !Array.isArray(body.hr)) {
     for (const sgl of SAGLAYICILAR) {
+      // Sürüm 27 öncesi göndericiler Claude ara havuz düşüşünü (%91 -> %44) haftalık sıfırlama sanabildiği için yok sayılır.
+      if (sgl === "claude" && clientVer < 27) continue;
+      // Sürüm 29 öncesi göndericiler Antigravity 3P (Claude) havuzunun sıfırlamasını Gemini haftalık sıfırlaması sanabildiği için yok sayılır.
+      if (sgl === "gemini" && clientVer < 29) continue;
       const rv = Number(body.hr[sgl]);
       if (Number.isSafeInteger(rv) && rv > now - 14 * 86400 && rv <= now + 14 * 86400) {
         const sr = sonrakiHaftaSn(rv, now);
@@ -1498,6 +1502,7 @@ async function handleIngest(req, env, ctx) {
   }
 
   const lim = body.l === undefined || clientVer < LIMIT_MIN_SURUM || engelliSaglayici.has("claude") ? null : limitOkumaV(body.l, now);
+  if (lim && clientVer < 27) delete lim.r["seven_day.resets_at"];
   if (!gelenHaftaReset.claude && lim && Number.isFinite(lim.r["seven_day.resets_at"]) && lim.r["seven_day.resets_at"] <= lim.t + 10 * 86400) {
     const sr = sonrakiHaftaSn(lim.r["seven_day.resets_at"], now);
     if (sr > 0) gelenHaftaReset.claude = sr;
@@ -1508,6 +1513,7 @@ async function handleIngest(req, env, ctx) {
       if (engelliSaglayici.has(sgl) || body.lp[sgl] === undefined) continue;
       const plim = limitOkumaV(body.lp[sgl], now);
       if (!plim) continue;
+      if (sgl === "gemini" && clientVer < 29) delete plim.r["seven_day.resets_at"];
       kabulPlim[sgl] = plim;
       if (!gelenHaftaReset[sgl] && Number.isFinite(plim.r["seven_day.resets_at"]) && plim.r["seven_day.resets_at"] <= plim.t + 10 * 86400) {
         const sr = sonrakiHaftaSn(plim.r["seven_day.resets_at"], now);
@@ -1562,19 +1568,23 @@ async function handleIngest(req, env, ctx) {
     }
   }
 
-  // Ek sağlayıcı limit okumaları (sürüm 18+: ör. Codex yerel rate_limits ve Antigravity userStatus)
+  // Ek sağlayıcı limit okumaları (sürüm 18+: ör. Codex yerel rate_limits, Antigravity agy statusLine / userStatus)
   for (const sgl of ["chatgpt", "gemini"]) {
     const plim = kabulPlim[sgl];
     if (!plim) continue;
     const hs = weekStartSaglayici(plim.t, sistemAyar, otoMap, sgl);
     const s = satirOf(plim, hs + WEEK);
-    if (s.w_pct === null && s.h_pct === null) continue;
-    const son = await env.DB.prepare("SELECT t, w_pct, w_reset, h_pct, h_reset FROM saglayici_limit_gecmis WHERE saglayici = ? AND device_id = ? ORDER BY t DESC LIMIT 1")
+    const ekPencereVar = Number.isFinite(plim.r["thirty_day.used_percentage"]) ||
+      Number.isFinite(plim.r["agy_gemini.used_percentage"]) ||
+      Number.isFinite(plim.r["agy_claude.used_percentage"]);
+    if (s.w_pct === null && s.h_pct === null && !ekPencereVar) continue;
+    const hamStr = JSON.stringify(plim.r);
+    const son = await env.DB.prepare("SELECT t, w_pct, w_reset, h_pct, h_reset, ham FROM saglayici_limit_gecmis WHERE saglayici = ? AND device_id = ? ORDER BY t DESC LIMIT 1")
       .bind(sgl, device).first();
-    if (yeniSatirMi(son, s)) {
+    if (yeniSatirMi(son, s) || (son && s.t > son.t && son.ham !== hamStr)) {
       const ls = [
         env.DB.prepare("INSERT OR IGNORE INTO saglayici_limit_gecmis (saglayici, device_id, t, w_pct, w_reset, h_pct, h_reset, ham) VALUES (?,?,?,?,?,?,?,?)")
-          .bind(sgl, device, s.t, s.w_pct, s.w_reset, s.h_pct, s.h_reset, JSON.stringify(plim.r)),
+          .bind(sgl, device, s.t, s.w_pct, s.w_reset, s.h_pct, s.h_reset, hamStr),
       ];
       if (s.w_pct !== null) ls.push(saglayiciLimitLogYenile(env, sgl, hs));
       await env.DB.batch(ls);

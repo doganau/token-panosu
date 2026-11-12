@@ -5619,21 +5619,34 @@ function limitPanel(d, perDev, gun = null) {
     : (kesitOkuma ? `o güne kadarki son yükseliş: ${gunAd(kesitOkuma.t)} ${hm(kesitOkuma.t)}` : "");
   const h5 = gun === null && L && L.h !== null && L.h !== undefined && L.hr > d.now ? L.h : null;
   const h5Reset = h5 !== null && L && L.hr > d.now ? hm(L.hr) : "";
+  const m30Ham = sgl === "chatgpt" && gun === null && canli && ham
+    ? (Number.isFinite(ham["thirty_day.used_percentage"]) ? ham["thirty_day.used_percentage"] : (Number.isFinite(ham["chatgpt_30d.used_percentage"]) ? ham["chatgpt_30d.used_percentage"] : null))
+    : null;
+  const m30ResetSn = m30Ham !== null && ham
+    ? (Number.isFinite(ham["thirty_day.resets_at"]) ? ham["thirty_day.resets_at"] : (Number.isFinite(ham["chatgpt_30d.resets_at"]) ? ham["chatgpt_30d.resets_at"] : 0))
+    : 0;
+  const m30Pct = m30Ham !== null && (!m30ResetSn || m30ResetSn > d.now) ? m30Ham : null;
   const agyClaudePct = sgl === "gemini" && gun === null && canli && ham && Number.isFinite(ham["agy_claude.used_percentage"]) ? ham["agy_claude.used_percentage"] : null;
   const agyGeminiPct = sgl === "gemini" && gun === null && canli && ham && Number.isFinite(ham["agy_gemini.used_percentage"]) ? ham["agy_gemini.used_percentage"] : null;
+  const agyClaude5Pct = sgl === "gemini" && gun === null && canli && ham && Number.isFinite(ham["agy_claude_5h.used_percentage"]) && (!Number.isFinite(ham["agy_claude_5h.resets_at"]) || ham["agy_claude_5h.resets_at"] > d.now)
+    ? ham["agy_claude_5h.used_percentage"] : null;
+  const agyGemini5Pct = sgl === "gemini" && gun === null && canli && ham && Number.isFinite(ham["agy_gemini_5h.used_percentage"]) && (!Number.isFinite(ham["agy_gemini_5h.resets_at"]) || ham["agy_gemini_5h.resets_at"] > d.now)
+    ? ham["agy_gemini_5h.used_percentage"] : null;
   const agyClaudeReset = agyClaudePct !== null && Number.isFinite(ham["agy_claude.resets_at"]) && ham["agy_claude.resets_at"] > d.now ? `${gunAd(ham["agy_claude.resets_at"])} ${hm(ham["agy_claude.resets_at"])}` : "";
   const agyGeminiReset = agyGeminiPct !== null && Number.isFinite(ham["agy_gemini.resets_at"]) && ham["agy_gemini.resets_at"] > d.now ? `${gunAd(ham["agy_gemini.resets_at"])} ${hm(ham["agy_gemini.resets_at"])}` : "";
-  const agyHavuzHtml = (agyClaudePct !== null || agyGeminiPct !== null)
+  const agyClaude5Reset = agyClaude5Pct !== null && Number.isFinite(ham["agy_claude_5h.resets_at"]) && ham["agy_claude_5h.resets_at"] > d.now ? hm(ham["agy_claude_5h.resets_at"]) : "";
+  const agyGemini5Reset = agyGemini5Pct !== null && Number.isFinite(ham["agy_gemini_5h.resets_at"]) && ham["agy_gemini_5h.resets_at"] > d.now ? hm(ham["agy_gemini_5h.resets_at"]) : "";
+  const agyHavuzHtml = (agyGeminiPct !== null || agyClaudePct !== null)
     ? `<div class="agy-havuzlar" aria-label="Antigravity model havuzları">
-        ${agyClaudePct !== null ? `<div class="agy-havuz">
-          <div class="agy-havuz-ust"><span>Antigravity · Claude Havuzu</span><b>%${pctFmt(agyClaudePct)}</b></div>
-          <span class="lbar" role="img" aria-label="Antigravity Claude havuzu %${pctFmt(agyClaudePct)}"><i style="width:${Math.min(100, agyClaudePct).toFixed(1)}%;background:#8b5cf6"></i></span>
-          <div class="agy-havuz-alt">Opus 4.6 · Sonnet 4.6${agyClaudeReset ? ` · Sıfırlama: ${esc(agyClaudeReset)}` : ""}</div>
-        </div>` : ""}
         ${agyGeminiPct !== null ? `<div class="agy-havuz">
           <div class="agy-havuz-ust"><span>Antigravity · Gemini Havuzu</span><b>%${pctFmt(agyGeminiPct)}</b></div>
           <span class="lbar" role="img" aria-label="Antigravity Gemini havuzu %${pctFmt(agyGeminiPct)}"><i style="width:${Math.min(100, agyGeminiPct).toFixed(1)}%;background:#3b82f6"></i></span>
-          <div class="agy-havuz-alt">Gemini 3.1 Pro · 3 Flash${agyGeminiReset ? ` · Sıfırlama: ${esc(agyGeminiReset)}` : ""}</div>
+          <div class="agy-havuz-alt">Gemini 4 · 3.8 Flash${agyGemini5Pct !== null ? ` · 5s: %${pctFmt(agyGemini5Pct)}${agyGemini5Reset ? ` (${esc(agyGemini5Reset)})` : ""}` : ""}${agyGeminiReset ? ` · Haftalık sıfırlama: ${esc(agyGeminiReset)}` : ""}</div>
+        </div>` : ""}
+        ${agyClaudePct !== null ? `<div class="agy-havuz">
+          <div class="agy-havuz-ust"><span>Antigravity · Claude &amp; 3P Havuzu</span><b>%${pctFmt(agyClaudePct)}</b></div>
+          <span class="lbar" role="img" aria-label="Antigravity Claude ve 3P havuzu %${pctFmt(agyClaudePct)}"><i style="width:${Math.min(100, agyClaudePct).toFixed(1)}%;background:#8b5cf6"></i></span>
+          <div class="agy-havuz-alt">Claude Opus/Sonnet 5.5 · GPT-OSS${agyClaude5Pct !== null ? ` · 5s: %${pctFmt(agyClaude5Pct)}${agyClaude5Reset ? ` (${esc(agyClaude5Reset)})` : ""}` : ""}${agyClaudeReset ? ` · Haftalık sıfırlama: ${esc(agyClaudeReset)}` : ""}</div>
         </div>` : ""}
       </div>`
     : "";
@@ -5668,19 +5681,28 @@ function limitPanel(d, perDev, gun = null) {
     ? "Henüz okunmadı. Yüzde, Claude masaüstü uygulaması açık olan bir bilgisayardan kendiliğinden gelir; dilersen aşağıdan doğrudan elle de girebilirsin."
     : sgl === "chatgpt"
       ? "Codex CLI oturum dosyalarında yerel oran bilgisi bulunduğunda otomatik okunur; dilersen haftalık kullanım yüzdesini aşağıdan elle de girebilirsin."
-      : "Antigravity veya Antigravity IDE açık olduğunda aktif kota pencereleri yerel veritabanından otomatik okunur; aktif kota penceresi yoksa üstteki listede üyelerin harcama payları ve kota hakları gösterilir, dilersen haftalık yüzdeyi aşağıdan elle de girebilirsin.";
+      : "Antigravity (agy CLI durum satırı veya yerel veritabanı) bulunan bir bilgisayardan kota pencereleri otomatik okunur; dilersen haftalık yüzdeyi aşağıdan elle de girebilirsin.";
   const hsBilgi = d.haftaSifirlama && d.haftaSifirlama[sgl] ? d.haftaSifirlama[sgl] : null;
   const hsKaynakAd = hsBilgi
     ? (hsBilgi.kaynak === "otomatik_disk" ? "otomatik · diskten" : hsBilgi.kaynak === "otomatik_yedek" ? "otomatik · yedek" : "elle")
     : "";
+  const canliYedekPct = pct === null && canli ? (h5 !== null ? h5 : m30Pct) : null;
+  const canliYedekEtiket = pct === null && canli ? (h5 !== null ? "5 saatlik" : m30Pct !== null ? "30 günlük" : "") : "";
+  const baslikDeger = pct !== null
+    ? `%${pctFmt(pct)}`
+    : canliYedekPct !== null
+      ? `%${pctFmt(canliYedekPct)} <small style="font-size:14px;font-weight:600;color:var(--ink-3)">(${canliYedekEtiket})</small>`
+      : "Okunmadı";
+  const herhangiCanliKotaVar = pct !== null || canliYedekPct !== null || agyGeminiPct !== null || agyClaudePct !== null;
   const metaEtiketler = [
     when ? `<span class="pill">${esc(when)}</span>` : "",
     gun === null && d.start === d.current && hsBilgi && hsBilgi.sonrakiReset
       ? `<span class="pill" title="Haftalık limit penceresinin sıfırlanma zamanı">Sıfırlama: ${esc(gunAd(hsBilgi.sonrakiReset))} ${esc(hm(hsBilgi.sonrakiReset))} (${esc(hsKaynakAd)})</span>`
       : "",
     h5 !== null ? `<span class="pill pill-accent">5 saatlik pencere: %${pctFmt(h5)}${h5Reset ? ` (${esc(h5Reset)}'de sıfırlanır)` : ""}</span>` : "",
-    agyClaudePct !== null ? `<span class="pill">Antigravity Claude: %${pctFmt(agyClaudePct)}</span>` : "",
-    agyGeminiPct !== null ? `<span class="pill">Antigravity Gemini: %${pctFmt(agyGeminiPct)}</span>` : "",
+    m30Pct !== null ? `<span class="pill">30 günlük pencere: %${pctFmt(m30Pct)}</span>` : "",
+    agyGeminiPct !== null ? `<span class="pill">Gemini havuzu: %${pctFmt(agyGeminiPct)}</span>` : "",
+    agyClaudePct !== null ? `<span class="pill">Claude/3P havuzu: %${pctFmt(agyClaudePct)}</span>` : "",
     ozelPayMi ? `<span class="pill">Özel kota payı</span>` : "",
     claudeMu && gun === null && d.taban_t > 0 ? `<span class="pill">Taban: ${esc(dTime(d.taban_t))}</span>` : "",
   ].filter(Boolean).join("");
@@ -5714,14 +5736,14 @@ function limitPanel(d, perDev, gun = null) {
   return `<section class="card limit-card" aria-labelledby="h-lim">
     <div class="lhead"><div>
       <p class="muted" id="h-lim">${esc(sb.ad)} limit kullanımı, ${gun === null ? "bu hafta" : `${esc(gunAdi)} sonuna kadar`}</p>
-      <p class="lbig">${pct === null ? "Okunmadı" : "%" + pctFmt(pct)}</p>
+      <p class="lbig">${baslikDeger}</p>
       ${metaEtiketler ? `<div class="lhead-meta">${metaEtiketler}</div>` : ""}
       </div>
       ${gun !== null ? `<button type="button" class="lgun-kaldir" data-gun-kaldir>Tüm hafta</button>` : ""}</div>
     ${agyHavuzHtml}
     ${rows ? `<ul class="llist" role="list">${rows}</ul>` : ""}
     ${pct === null && gun !== null && !canli ? `<p class="note">${esc(gunAdi)} sonuna kadar limit okuması yok.</p>` : ""}
-    ${pct === null && (gun === null || canli) ? `<p class="note">${bosNot}</p>` : ""}
+    ${!herhangiCanliKotaVar && (gun === null || canli) ? `<p class="note">${bosNot}</p>` : ""}
     ${fableYok && gun === null ? `<p class="note">Bu hafta Fable yüzdesi girilmedi. Claude'un üst menüsündeki "Haftalık · Fable" değerini aşağıya yaz.</p>` : ""}
     ${altForm}
   </section>`;
@@ -5807,16 +5829,17 @@ function saglayiciTelemetriKarti(d, total, byModel) {
   if (sgl === "gemini" && (Number.isFinite(ham["agy_claude.used_percentage"]) || Number.isFinite(ham["agy_gemini.used_percentage"]))) {
     const ac = Number.isFinite(ham["agy_claude.used_percentage"]) ? ham["agy_claude.used_percentage"] : 0;
     const ag = Number.isFinite(ham["agy_gemini.used_percentage"]) ? ham["agy_gemini.used_percentage"] : 0;
+    const g5 = Number.isFinite(ham["agy_gemini_5h.used_percentage"]) && (!Number.isFinite(ham["agy_gemini_5h.resets_at"]) || ham["agy_gemini_5h.resets_at"] > d.now) ? ham["agy_gemini_5h.used_percentage"] : null;
     h3Baslik = "Antigravity Çift Havuz Durumu";
-    h3Deger = `Claude %${pctFmt(ac)} <small>· Gemini %${pctFmt(ag)}</small>`;
-    h3Cubuk = `<i style="flex:${Math.max(4, ac).toFixed(1)};background:#8b5cf6"></i><i style="flex:${Math.max(4, ag).toFixed(1)};background:#3b82f6"></i><i style="flex:${Math.max(2, 200 - ac - ag).toFixed(1)};background:transparent"></i>`;
-    h3Etiket = `<span><i class="tm-nokta" style="background:#8b5cf6"></i>Claude havuzu</span><span><i class="tm-nokta" style="background:#3b82f6"></i>Gemini havuzu</span><span>Sıfırlama: ${esc(resetYazi)}</span>`;
+    h3Deger = `Gemini %${pctFmt(ag)} <small>· Claude/3P %${pctFmt(ac)}</small>`;
+    h3Cubuk = `<i style="flex:${Math.max(4, ag).toFixed(1)};background:#3b82f6"></i><i style="flex:${Math.max(4, ac).toFixed(1)};background:#8b5cf6"></i><i style="flex:${Math.max(2, 200 - ac - ag).toFixed(1)};background:transparent"></i>`;
+    h3Etiket = `<span><i class="tm-nokta" style="background:#3b82f6"></i>Gemini${g5 !== null ? ` (5s %${pctFmt(g5)})` : ""}</span><span><i class="tm-nokta" style="background:#8b5cf6"></i>Claude/3P</span><span>Sıfırlama: ${esc(resetYazi)}</span>`;
   } else {
     const h5 = L && L.h !== null && L.h !== undefined && L.hr > d.now ? L.h : null;
     const w7 = L && L.pct !== null && L.pct !== undefined ? L.pct : null;
-    const m30 = Number.isFinite(ham["chatgpt_30d.used_percentage"]) ? ham["chatgpt_30d.used_percentage"] : null;
-    h3Deger = w7 !== null ? `%${pctFmt(w7)} <small>haftalık pencere</small>` : `${esc(resetYazi)} <small>sıfırlama</small>`;
-    const doluluk = w7 !== null ? Math.min(100, Math.max(2, w7)) : 0;
+    const m30 = Number.isFinite(ham["thirty_day.used_percentage"]) ? ham["thirty_day.used_percentage"] : (Number.isFinite(ham["chatgpt_30d.used_percentage"]) ? ham["chatgpt_30d.used_percentage"] : null);
+    h3Deger = w7 !== null ? `%${pctFmt(w7)} <small>haftalık pencere</small>` : m30 !== null ? `%${pctFmt(m30)} <small>30 günlük pencere</small>` : `${esc(resetYazi)} <small>sıfırlama</small>`;
+    const doluluk = w7 !== null ? Math.min(100, Math.max(2, w7)) : m30 !== null ? Math.min(100, Math.max(2, m30)) : 0;
     h3Cubuk = `<i style="width:${doluluk.toFixed(1)}%;background:var(--accent)"></i>`;
     h3Etiket = [
       h5 !== null ? `<span><i class="tm-nokta" style="background:var(--accent)"></i>5s: %${pctFmt(h5)}</span>` : "",

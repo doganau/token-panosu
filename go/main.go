@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	Surum    = 27 // yeni sürüm yayınlanınca artırılır; imzalı güncelleme bunu kullanır
+	Surum    = 29 // yeni sürüm yayınlanınca artırılır; imzalı güncelleme bunu kullanır
 	Protokol = 2  // sunucu ile veri biçimi
 
 	yukEsigi      = 1.5               // 1 dk yük / çekirdek: üstündeyse (işlemci çok meşgul) otomatik çalıştırma o turu atlar
@@ -89,9 +89,12 @@ type Ayar struct {
 	URL    string `json:"url"`
 	Cihaz  string `json:"cihaz"`
 	Etiket string `json:"etiket"`
-	// Durum satırı kaydı (bkz. durum_satiri.go): ayarYaz bunları kaybetmesin
-	DurumOnceki  map[string]json.RawMessage `json:"durum_satiri_onceki,omitempty"`
-	DurumKuruldu []string                   `json:"durum_satiri_kuruldu,omitempty"`
+	// Durum satırı ve uyarı kayıtları (bkz. durum_satiri.go, uyari.go, agy_kota.go): ayarYaz bunları kaybetmesin
+	DurumOnceki     map[string]json.RawMessage `json:"durum_satiri_onceki,omitempty"`
+	DurumKuruldu    []string                   `json:"durum_satiri_kuruldu,omitempty"`
+	UyariKuruldu    []string                   `json:"uyari_kuruldu,omitempty"`
+	AgyDurumOnceki  map[string]json.RawMessage `json:"agy_durum_onceki,omitempty"`
+	AgyDurumKuruldu []string                   `json:"agy_durum_kuruldu,omitempty"`
 }
 
 func ayarOku() (Ayar, error) {
@@ -195,6 +198,10 @@ const yardimMetni = `Token Panosu gönderici
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "durum-satiri" {
 		durumSatiri() // Claude Code durum satırı: hafif, konsol bağlamaz, her zaman 0 ile çıkar
+		os.Exit(0)
+	}
+	if len(os.Args) > 1 && os.Args[1] == agyDurumAnahtar {
+		agyDurumSatiri() // Antigravity CLI (agy) resmi durum satırı: kota yüzdesini kaydeder, her zaman 0 ile çıkar
 		os.Exit(0)
 	}
 	if len(os.Args) > 1 && os.Args[1] == uyariAnahtar {
@@ -331,6 +338,7 @@ func kurKomutu(b bayraklar) error {
 		return fmt.Errorf("program klasöre kopyalanamadı: %v", err)
 	}
 	uyariKur()
+	agyDurumSatiriKur()
 	fmt.Printf("Eşleşti: %s\n", e.Label)
 	if ok, satir := gonder(); ok {
 		fmt.Printf("İlk gönderim tamam: %d satır.\n", satir)
@@ -437,8 +445,10 @@ func gonder() (bool, int) {
 	}
 	durumSatiriKaldir() // v17: durum satırından limit okunmuyor; kurulduysa önceki ayar geri konur
 	uyariKur()          // v17: limit payı dolunca her istekte uyarı
+	agyDurumSatiriKur() // v28: Antigravity CLI resmi statusLine kancası
 	eskiSorguTemizle()
 	simdi := time.Now().Unix()
+	agyKotaYenile(simdi)
 	govde, s, err := govdeHazirla(simdi)
 	if err != nil {
 		logYaz("HATA: %v", err)
@@ -600,6 +610,7 @@ func durumKomutu() error {
 
 func kaldirKomutu() error {
 	durumSatiriKaldir()
+	agyDurumSatiriKaldir()
 	uyariKaldir()
 	if !testModu {
 		zamanlayiciKaldir()
