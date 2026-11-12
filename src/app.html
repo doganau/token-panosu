@@ -6715,9 +6715,27 @@ async function pageDevices() {
     </div>`;
   }).join("");
 
+  const md = d.muhurDurum || null;
+  const muhurBilgiHTML = md && md.aktif ? (md.zorunlu
+    ? `<div class="card" style="padding:14px 18px;margin-bottom:16px;border-left:3px solid var(--ok, #16a34a)">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+          <b>${ICON.shield} Mühürlü Gönderici Kilidi Etkin (en az v${md.minSurum})</b>
+          <span class="pill pill-ok">Sıkı doğrulama açık</span>
+        </div>
+        <p class="muted" style="margin:6px 0 0;font-size:13px">Tüm bilgisayarlar mühürlü sürüme geçti. Eski sürümlerden, özel betiklerden veya tek bayt değiştirilmiş programlardan gelen veriler otomatik reddedilir ve sistemde şüpheli olarak işaretlenir.</p>
+      </div>`
+    : `<div class="card" style="padding:14px 18px;margin-bottom:16px;border-left:3px solid var(--warn, #d97706)">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+          <b>${ICON.shield} Mühürlü Gönderici Geçişi (v${md.minSurum})</b>
+          <span class="pill">${(md.bekleyen || []).length} bilgisayar bekleniyor</span>
+        </div>
+        <p class="muted" style="margin:6px 0 0;font-size:13px">Henüz mühürlü sürüme geçmeyen bilgisayarlar (${esc((md.bekleyen || []).join(", ") || "yok")}) güncellenene kadar mevcut verileri alınmaya devam eder; tamamı güncellendiği anda eski ve mühürsüz sürümler otomatik olarak kapatılır.</p>
+      </div>`) : "";
+
   shell("bilgisayarlar", `
     <h1>Bilgisayarlar</h1>
     <p class="lead">${d.devices.length} bilgisayar bağlı. Ayrıntı için bir bilgisayarı seç veya ortak hesap kilitlerini aşağıdan yönet.</p>
+    ${muhurBilgiHTML}
     <section class="card" aria-labelledby="h-cihaz-tablo">
       <div class="card-head"><h2 id="h-cihaz-tablo">Bağlı bilgisayarlar</h2><span class="pill pill-accent">${ICON[sb.id]}<span>Haftalık sütun: ${esc(sb.ad)}</span></span></div>
       <div class="table-wrap" tabindex="0" role="region" aria-labelledby="h-cihaz-tablo"><table class="devlist"><thead><tr><th scope="col">Bilgisayar</th><th scope="col">Bu hafta (${esc(sb.ad)})</th><th scope="col">Durum</th><th scope="col" class="hide-sm">Eklendi</th></tr></thead>

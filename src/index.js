@@ -24,6 +24,8 @@ const SAGLAYICI_AD = { claude: "Claude", chatgpt: "ChatGPT", gemini: "Gemini" };
 const saglayiciSec = (s) => (SAGLAYICILAR.includes(s) ? s : "claude");
 const VARSAYILAN_ORIGIN = "https://pano.ornek.com";
 const RESMI_AJAN_RE = /^token-panosu\/\d+ \((darwin|windows|linux)\)$/;
+const MUHUR_ILK_SURUM = 31;
+const HEDEF_OS_HARITA = { darwin: "Darwin", windows: "Windows", linux: "Linux" };
 const EPOSTA_RE = /^[^\s@<>"'\\]{1,64}@[^\s@<>"'\\]{1,120}\.[^\s@<>"'\\]{2,}$/;
 const epostaTemizle = (v) => {
   if (typeof v !== "string") return "";
@@ -86,6 +88,8 @@ const VARSAYILAN_AYAR = {
   payModu: "esit", // "esit" | "ozel"
   ozelPaylar: {}, // { [uyeId | "c:"+deviceId]: yuzdeAgirlik }
   hesapKilitAktif: { claude: true, chatgpt: true, gemini: true },
+  muhurZorunlu: false, // tüm kayıtlı cihazlar mühürlü sürüme (>=31) ulaştığında otomatik true olur
+  zorunluMinSurum: 0, // mühür zorunlu olduğunda kabul edilen en düşük sürüm
   ozelFiyatlar: {}, // { [model]: [girdi, cikti, cw5m, cw1h, cr] }
   ofis: {
     aktif: true,
@@ -262,6 +266,8 @@ function ayarTemizle(ham, taban = VARSAYILAN_AYAR) {
     payModu: h.payModu === "ozel" || h.payModu === "esit" ? h.payModu : t.payModu,
     ozelPaylar,
     hesapKilitAktif,
+    muhurZorunlu: typeof h.muhurZorunlu === "boolean" ? h.muhurZorunlu : !!t.muhurZorunlu,
+    zorunluMinSurum: h.zorunluMinSurum !== undefined ? tamSayiSinir(h.zorunluMinSurum, 0, 1000000, t.zorunluMinSurum || 0) : (t.zorunluMinSurum || 0),
     ozelFiyatlar,
     ofis: {
       aktif: typeof ofGelen.aktif === "boolean" ? ofGelen.aktif : ofTaban.aktif,
@@ -1193,6 +1199,67 @@ function saglayiciLimitLogYenile(env, sgl, hs) {
   ).bind(sgl, hs, WEEK);
 }
 
+function beklenenIkiliSha256(surum, hedef) {
+  if (!MANIFEST || !hedef) return "";
+  if (MANIFEST.ikili && MANIFEST.ikili.surum === surum && MANIFEST.ikili.dosyalar && MANIFEST.ikili.dosyalar[hedef]) {
+    return String(MANIFEST.ikili.dosyalar[hedef].sha256 || "").toLowerCase();
+  }
+  const g = MANIFEST.gecmis && MANIFEST.gecmis[String(surum)];
+  return g && typeof g[hedef] === "string" ? g[hedef].toLowerCase() : "";
+}
+
+async function dogrulaMuhur(req, env, device, rowSecret, ts, rawSha, clientVer, osAdi) {
+  const muhurAna = typeof env.MUHUR_ANAHTAR === "string" ? env.MUHUR_ANAHTAR.trim().toLowerCase() : "";
+  if (!/^[0-9a-f]{64}$/.test(muhurAna) || !SON_SURUM || SON_SURUM < MUHUR_ILK_SURUM) {
+    return { aktif: false, gecerli: true };
+  }
+  const xTarget = (req.headers.get("x-target") || "").trim().toLowerCase();
+  const xExe = (req.headers.get("x-exe-hash") || "").trim().toLowerCase();
+  const xSeal = (req.headers.get("x-seal") || "").trim().toLowerCase();
+  const ua = (req.headers.get("user-agent") || "").trim();
+  const ae = (req.headers.get("accept-encoding") || "").toLowerCase();
+  if (!/^(darwin|windows|linux)-(amd64|arm64)$/.test(xTarget) || !/^[0-9a-f]{64}$/.test(xExe) || !/^[0-9a-f]{64}$/.test(xSeal)) {
+    return {
+      aktif: true,
+      gecerli: false,
+      kod: "eksik_muhur",
+      metin: `Resmî gönderici mührü eksik (sürüm v${clientVer}, istemci: ${(ua || "bilinmiyor").slice(0, 40)}): veri alınmadı`,
+    };
+  }
+  const hedefOs = xTarget.split("-")[0];
+  if (HEDEF_OS_HARITA[hedefOs] !== osAdi || ua !== `token-panosu/${clientVer} (${hedefOs})` || !ae.includes("gzip")) {
+    return {
+      aktif: true,
+      gecerli: false,
+      kod: "sahte_baslik",
+      metin: `Gönderici ağ/sistem parmak izi resmî ikiliyle uyuşmuyor (${ua.slice(0, 40)}): veri alınmadı`,
+    };
+  }
+  const beklenenSha = beklenenIkiliSha256(clientVer, xTarget);
+  if (!beklenenSha || xExe !== beklenenSha) {
+    return {
+      aktif: true,
+      gecerli: false,
+      kod: "degismis_ikili",
+      metin: `Gönderici programında değişiklik algılandı (v${clientVer} ${xTarget} özeti resmî imzalı sürümle uyuşmuyor): veri alınmadı`,
+    };
+  }
+  const anaKey = await crypto.subtle.importKey("raw", hexToBytes(muhurAna), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const kHedefBuf = await crypto.subtle.sign("HMAC", anaKey, enc.encode(`tp-muhur-k1|${clientVer}|${xTarget}`));
+  const sealKey = await crypto.subtle.importKey("raw", kHedefBuf, { name: "HMAC", hash: "SHA-256" }, false, ["verify"]);
+  const payload = `muhur-v1\n${device}\n${ts}\n${clientVer}\n${xTarget}\n${beklenenSha}\n${rawSha}\n${String(rowSecret || "").slice(0, 16).toLowerCase()}`;
+  const tamam = await crypto.subtle.verify("HMAC", sealKey, hexToBytes(xSeal), enc.encode(payload));
+  if (!tamam) {
+    return {
+      aktif: true,
+      gecerli: false,
+      kod: "gecersiz_muhur",
+      metin: `Gönderici kriptografik mührü doğrulanamadı (özel derleme veya değiştirilmiş kod): veri alınmadı`,
+    };
+  }
+  return { aktif: true, gecerli: true };
+}
+
 async function handleIngest(req, env, ctx) {
   const device = req.headers.get("x-device") || "";
   const tsRaw = req.headers.get("x-timestamp") || "";
@@ -1207,15 +1274,12 @@ async function handleIngest(req, env, ctx) {
   const raw = new Uint8Array(await req.arrayBuffer());
   if (raw.length > 1024 * 1024) return json({ hata: "gövde çok büyük" }, 413);
 
-  const row = await env.DB.prepare("SELECT secret, label FROM devices WHERE id = ?").bind(device).first();
+  const row = await env.DB.prepare("SELECT secret, label, client_ver, srv_flags FROM devices WHERE id = ?").bind(device).first();
   if (!row) return json({ hata: "imza geçersiz" }, 401);
-  const msg = `v1\n${device}\n${ts}\n${await sha256Hex(raw)}`;
+  const rawSha = await sha256Hex(raw);
+  const msg = `v1\n${device}\n${ts}\n${rawSha}`;
   const key = await crypto.subtle.importKey("raw", hexToBytes(row.secret), { name: "HMAC", hash: "SHA-256" }, false, ["verify"]);
   if (!(await crypto.subtle.verify("HMAC", key, hexToBytes(sig), enc.encode(msg)))) return json({ hata: "imza geçersiz" }, 401);
-
-  const upd = await env.DB.prepare("UPDATE devices SET last_ts = ?, last_seen = ? WHERE id = ? AND last_ts < ?")
-    .bind(ts, now, device, ts).run();
-  if (!upd.meta.changes) return json({ hata: "tekrar gönderim" }, 409);
 
   let body;
   try { body = JSON.parse(new TextDecoder().decode(raw)); } catch { return json({ hata: "json" }, 400); }
@@ -1227,6 +1291,62 @@ async function handleIngest(req, env, ctx) {
   // bs: istemcinin gösterdiği son bildirim kimliği (isteğe bağlı; geçersizse yok sayılır)
   const bs = Number.isSafeInteger(body.bs) && body.bs >= 0 ? body.bs : null;
   const osAdi = ["Darwin", "Windows", "Linux"].includes(body.o) ? body.o : null; // yalnızca bilinen üç değer
+
+  const sistemAyarIlk = await ayarYukle(env);
+  const mevcutCihazSurum = Number(row.client_ver) || 0;
+
+  // Mühürlü sürüme (>=31) geçmiş bir bilgisayarda arka planda unutulmuş eski bir betik çalışırsa,
+  // mühür zorunluluğu henüz kilitlenmemişken cihazın sürümünü ve verisini ezmesini engelle:
+  if (!sistemAyarIlk.muhurZorunlu && mevcutCihazSurum >= MUHUR_ILK_SURUM && clientVer < MUHUR_ILK_SURUM) {
+    return json({ hata: "bu bilgisayar yeni sürüme geçti; eski betik devre dışı" }, 409);
+  }
+
+  const muhur = await dogrulaMuhur(req, env, device, row.secret, ts, rawSha, clientVer, osAdi);
+  const ortamMudahale = Array.isArray(body.c) && body.c.find((f) => f && (f.k === "ortam_mudahale" || f.k === "sahte_ev") && typeof f.t === "string");
+  const minZorunlu = sistemAyarIlk.muhurZorunlu
+    ? Math.max(MUHUR_ILK_SURUM, sistemAyarIlk.zorunluMinSurum || MUHUR_ILK_SURUM)
+    : 0;
+
+  const reddetVeIsaretle = async (kod, metin) => {
+    const updRed = await env.DB.prepare("UPDATE devices SET last_ts = ?, last_seen = ? WHERE id = ? AND last_ts < ?")
+      .bind(ts, now, device, ts).run();
+    if (!updRed.meta.changes) return json({ hata: "tekrar gönderim" }, 409);
+    let eskiF = [];
+    try { eskiF = JSON.parse(row.srv_flags || "[]"); } catch {}
+    const korunan = Array.isArray(eskiF)
+      ? eskiF.filter((f) => f && f.k !== "mudahale_istemci" && f.k !== "eski_surum_red" && f.k !== "ozel_istemci")
+      : [];
+    korunan.push({ k: kod, s: "s", at: now, t: String(metin || "").slice(0, 180) });
+    await env.DB.prepare("UPDATE devices SET srv_flags = ?, last_seen = ? WHERE id = ?")
+      .bind(JSON.stringify(korunan), now, device).run();
+    okumaOnbellekTemizle(false);
+    return json({ hata: metin }, 403);
+  };
+
+  // 1) Mühürlü sürüm (>=31) iddiasıyla gelip mührü/ikili özeti tutmayan istekler her zaman anında reddedilir ve işaretlenir
+  if (muhur.aktif && clientVer >= MUHUR_ILK_SURUM && !muhur.gecerli) {
+    return reddetVeIsaretle("mudahale_istemci", muhur.metin);
+  }
+  // 2) Çalışma ortamı kurcalanmışsa (sahte HOME, DYLD/LD_PRELOAD, TOKEN_PANOSU_DIZIN) veri alınmaz ve işaretlenir
+  if (ortamMudahale && (muhur.aktif || sistemAyarIlk.muhurZorunlu)) {
+    return reddetVeIsaretle("mudahale_istemci", `${ortamMudahale.t.slice(0, 140)} — veri alınmadı`);
+  }
+  // 3) Tüm cihazlar mühürlü sürüme ulaştıktan sonra (muhurZorunlu === true): eski sürümler ve mühürsüz betikler reddedilir ve işaretlenir
+  if (sistemAyarIlk.muhurZorunlu) {
+    if (clientVer < minZorunlu) {
+      return reddetVeIsaretle(
+        "eski_surum_red",
+        `Eski veya yetkisiz gönderici sürümü (v${clientVer} < zorunlu v${minZorunlu}): veri alınmadı`
+      );
+    }
+    if (muhur.aktif && !muhur.gecerli) {
+      return reddetVeIsaretle("mudahale_istemci", muhur.metin);
+    }
+  }
+
+  const upd = await env.DB.prepare("UPDATE devices SET last_ts = ?, last_seen = ? WHERE id = ? AND last_ts < ?")
+    .bind(ts, now, device, ts).run();
+  if (!upd.meta.changes) return json({ hata: "tekrar gönderim" }, 409);
   const minH = now - 40 * 86400;
   const maxH = now + 3600;
 
@@ -1454,6 +1574,9 @@ async function handleIngest(req, env, ctx) {
       t: `Resmî uygulama yerine özel betik (${uaHam.slice(0, 48)}) çalışıyor; otomatik güncellenemez.`,
     });
   }
+  // Kod/ikili müdahalesi denemesi yapıldıysa 48 saat boyunca görünür tut (hemen eski haline döndürse bile gizlenemesin)
+  const eskiMudahale = oldFlags.find((f) => f && f.k === "mudahale_istemci" && f.at && now - f.at < 48 * 3600);
+  if (eskiMudahale) sflags.push(eskiMudahale);
   const yazilacak = [
     ...yeniKilitStmts,
     env.DB.prepare("UPDATE devices SET client_ver = ?, os = COALESCE(?, os), flags = ?, srv_flags = ?, bildirim_son = MAX(bildirim_son, ?), hesaplar = ?, hesap_eposta = ? WHERE id = ?")
@@ -1554,6 +1677,23 @@ async function handleIngest(req, env, ctx) {
   }
 
   await env.DB.batch(yazilacak);
+
+  // Tüm kayıtlı bilgisayarlar mühürlü sürüme (>=31 ve güncel sürüme) geçtiği anda kilidi otomatik devreye al:
+  if (muhur.aktif && muhur.gecerli && clientVer >= MUHUR_ILK_SURUM) {
+    const hedefSurum = SON_SURUM >= MUHUR_ILK_SURUM ? SON_SURUM : MUHUR_ILK_SURUM;
+    if (!sistemAyar.muhurZorunlu || (sistemAyar.zorunluMinSurum || 0) < hedefSurum) {
+      const sayim = await env.DB.prepare(
+        "SELECT COUNT(*) AS top, SUM(CASE WHEN client_ver < ? THEN 1 ELSE 0 END) AS eski31, SUM(CASE WHEN client_ver < ? THEN 1 ELSE 0 END) AS eskiSon FROM devices"
+      ).bind(MUHUR_ILK_SURUM, hedefSurum).first();
+      if (sayim && Number(sayim.top) > 0) {
+        if (Number(sayim.eskiSon) === 0 && (!sistemAyar.muhurZorunlu || (sistemAyar.zorunluMinSurum || 0) < hedefSurum)) {
+          await ayarKaydet(env, { muhurZorunlu: true, zorunluMinSurum: hedefSurum });
+        } else if (!sistemAyar.muhurZorunlu && Number(sayim.eski31) === 0) {
+          await ayarKaydet(env, { muhurZorunlu: true, zorunluMinSurum: Math.max(sistemAyar.zorunluMinSurum || 0, MUHUR_ILK_SURUM) });
+        }
+      }
+    }
+  }
 
   // Limit okuması: cihaz başına geçmiş tablosuna yazılır (değişince ya da 30 dk'da bir). Ek okuma: cihazın son satırı (1 sorgu).
   // Etkin haftalık değer = pencere içindeki en büyük okuma (boştaki bir oturum eski yüzdesini taze damgayla gönderebilir).
@@ -1886,8 +2026,16 @@ async function handleWeek(env, url, ctx) {
     if (sglOk(r) && Number.isFinite(r.h) && (firstH === null || r.h < firstH)) firstH = r.h;
   }
   const haftaSifirlamaTum = haftaSifirlamaHaritasi(sistemAyar, otoMap, now, cihazAdMap);
+  const muhurEtkinSunucu = typeof env.MUHUR_ANAHTAR === "string" && /^[0-9a-f]{64}$/i.test(env.MUHUR_ANAHTAR.trim()) && SON_SURUM >= MUHUR_ILK_SURUM;
+  const bekleyenCihazlar = devices.results.filter((d) => (d.client_ver || 0) < MUHUR_ILK_SURUM).map((d) => d.label);
   const yanitVeri = {
     now, start, end, current, latest: SON_SURUM,
+    muhurDurum: {
+      aktif: muhurEtkinSunucu,
+      zorunlu: !!sistemAyar.muhurZorunlu,
+      minSurum: sistemAyar.muhurZorunlu ? Math.max(MUHUR_ILK_SURUM, sistemAyar.zorunluMinSurum || MUHUR_ILK_SURUM) : MUHUR_ILK_SURUM,
+      bekleyen: bekleyenCihazlar,
+    },
     saglayici,
     saglayiciOzeti,
     hesapKilit,
@@ -2104,19 +2252,20 @@ async function handleAdmin(req, env, path, url, erisim) {
   if (path === "/api/yonetim/ayarlar" && req.method === "POST") {
     const b = await req.json();
     if (b && b.varsayilanaDon === true) {
-      await env.DB.prepare("DELETE FROM sistem_ayar WHERE id = 1").run();
-      ayarBellek = VARSAYILAN_AYAR;
-      ayarYuklendiAt = now;
-      asimOnbellek = null;
-      okumaOnbellekTemizle(true);
-      fiyatBirlestirUygula();
-      const hs = await haftaSifirlamaKapsamli(VARSAYILAN_AYAR);
+      if (!admin) return json({ hata: "Bu işlem yalnızca tam yetkili sistem yöneticisi içindir." }, 403);
+      const korunanMuhur = { muhurZorunlu: !!sistemAyar.muhurZorunlu, zorunluMinSurum: sistemAyar.zorunluMinSurum || 0 };
+      const yeniVarsayilan = await ayarKaydet(env, { ...VARSAYILAN_AYAR, ...korunanMuhur });
+      const hs = await haftaSifirlamaKapsamli(yeniVarsayilan);
       const guncelOto = otoSifirlamaBellek.map || otoMap;
       await env.DB.batch(SAGLAYICILAR.map((s) => {
-        const wk = weekStartSaglayici(now, VARSAYILAN_AYAR, guncelOto, s);
+        const wk = weekStartSaglayici(now, yeniVarsayilan, guncelOto, s);
         return s === "claude" ? limitLogYenile(env, wk) : saglayiciLimitLogYenile(env, s, wk);
       }));
-      return json({ tamam: true, ayar: VARSAYILAN_AYAR, haftaSifirlama: hs, now });
+      return json({ tamam: true, ayar: yeniVarsayilan, haftaSifirlama: hs, now });
+    }
+    if (b && typeof b === "object" && !admin) {
+      delete b.muhurZorunlu;
+      delete b.zorunluMinSurum;
     }
     const yeni = await ayarKaydet(env, b);
     const hs = await haftaSifirlamaKapsamli(yeni);
@@ -2629,10 +2778,10 @@ export default {
         return new Response(req.method === "HEAD" ? null : APP, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", ...SEC_HEADERS } });
       }
       if (p === "/guncelle/manifest.json" && (req.method === "GET" || req.method === "HEAD")) {
-        return new Response(req.method === "HEAD" ? null : JSON.stringify(MANIFEST), { headers: { "content-type": "application/json", "cache-control": "no-store" } });
+        return new Response(req.method === "HEAD" ? null : JSON.stringify({ ikili: MANIFEST.ikili || null }), { headers: { "content-type": "application/json", "cache-control": "no-store" } });
       }
       if ((p === "/kur.sh" || p === "/kur.ps1") && (req.method === "GET" || req.method === "HEAD")) {
-        const betik = (p === "/kur.sh" ? KUR_SH : KUR_PS1).replaceAll(VARSAYILAN_ORIGIN, url.origin);
+        const betik = (p === "/kur.sh" ? KUR_SH : KUR_PS1).replace(/^\uFEFF/, "").replaceAll(VARSAYILAN_ORIGIN, url.origin);
         return new Response(req.method === "HEAD" ? null : betik, {
           headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff" },
         });

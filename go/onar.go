@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 )
 
@@ -48,7 +49,103 @@ func plistBizimAlakaMi(ad, icerik string) bool {
 	}
 	return strings.Contains(kucuk, ".token-panosu") ||
 		strings.Contains(kucuk, "com.tokenpanosu") ||
-		strings.Contains(kucuk, "/api/gonder")
+		strings.Contains(kucuk, "/api/gonder") ||
+		strings.Contains(kucuk, "x-signature")
+}
+
+func betikUzantisiMi(yol string) bool {
+	u := strings.ToLower(yol)
+	for _, ek := range []string{".py", ".sh", ".js", ".mjs", ".rb", ".pl"} {
+		if strings.HasSuffix(u, ek) {
+			return true
+		}
+	}
+	return false
+}
+
+// satirdanBetikYollariCikar: kabuk komutu, plist argümanı ya da ps çıktısı içindeki
+// olası özel betik dosyası yollarını (~ ve $HOME genişleterek) döndürür.
+func satirdanBetikYollariCikar(metin string) []string {
+	ev := evDizini()
+	var sonuc []string
+	gorulen := map[string]bool{}
+	ekle := func(aday string) {
+		aday = strings.TrimSpace(strings.Trim(aday, `"'();,&|<>`))
+		if aday == "" || strings.HasPrefix(aday, "-") {
+			return
+		}
+		if strings.HasPrefix(aday, "~/") {
+			aday = filepath.Join(ev, aday[2:])
+		} else if strings.HasPrefix(aday, "$HOME/") {
+			aday = filepath.Join(ev, aday[6:])
+		}
+		if !betikUzantisiMi(aday) {
+			return
+		}
+		if st, err := os.Stat(aday); err == nil && !st.IsDir() && st.Size() <= 512*1024 {
+			if !gorulen[aday] {
+				gorulen[aday] = true
+				sonuc = append(sonuc, aday)
+			}
+		}
+	}
+	ekle(metin)
+	for _, parca := range strings.Fields(metin) {
+		ekle(parca)
+		if i := strings.IndexByte(parca, '='); i >= 0 {
+			ekle(parca[i+1:])
+		}
+	}
+	return sonuc
+}
+
+func calisanYabanciBetikler() [] struct {
+	pid   int
+	betik string
+} {
+	if testModu || (runtime.GOOS != "darwin" && runtime.GOOS != "linux") {
+		return nil
+	}
+	uid := strconv.Itoa(os.Getuid())
+	benimPid := os.Getpid()
+	cikti, err := exec.Command("ps", "-u", uid, "-o", "pid=,command=").Output()
+	if err != nil || len(cikti) == 0 {
+		return nil
+	}
+	var liste []struct {
+		pid   int
+		betik string
+	}
+	for _, satir := range strings.Split(string(cikti), "\n") {
+		satir = strings.TrimSpace(satir)
+		if satir == "" {
+			continue
+		}
+		alanlar := strings.Fields(satir)
+		if len(alanlar) < 2 {
+			continue
+		}
+		pid, err := strconv.Atoi(alanlar[0])
+		if err != nil || pid <= 1 || pid == benimPid {
+			continue
+		}
+		komutSatiri := strings.TrimSpace(satir[len(alanlar[0]):])
+		if strings.Contains(komutSatiri, ikiliYolu()) {
+			continue
+		}
+		for _, y := range satirdanBetikYollariCikar(komutSatiri) {
+			if strings.ToLower(filepath.Base(y)) == "kur.sh" {
+				continue
+			}
+			if bb, err := os.ReadFile(y); err == nil && plistBizimAlakaMi(filepath.Base(y), string(bb)) {
+				liste = append(liste, struct {
+					pid   int
+					betik string
+				}{pid: pid, betik: y})
+			}
+		}
+	}
+	return liste
 }
 
 func metindenAdayCikar(icerik string, haric64 map[string]bool) (cihazlar []string, gizliler []string, etiket string, adres string) {
@@ -242,19 +339,11 @@ func mevcutAdaylariBul() []onarAday {
 				alaka := plistBizimAlakaMi(g.Name(), icerik)
 				var adayBetikler []string
 				for _, m := range eslesmeler {
-					arg := strings.TrimSpace(m[1])
-					if arg == "" || strings.HasPrefix(arg, "-") {
-						continue
-					}
-					ust := strings.ToLower(arg)
-					if strings.HasSuffix(ust, ".py") || strings.HasSuffix(ust, ".sh") || strings.HasSuffix(ust, ".js") {
-						if bst, err := os.Stat(arg); err == nil && !bst.IsDir() && bst.Size() <= 512*1024 {
-							if bb, err := os.ReadFile(arg); err == nil {
-								bs := string(bb)
-								if alaka || plistBizimAlakaMi(filepath.Base(arg), bs) {
-									alaka = true
-									adayBetikler = append(adayBetikler, arg)
-								}
+					for _, y := range satirdanBetikYollariCikar(m[1]) {
+						if bb, err := os.ReadFile(y); err == nil {
+							if alaka || plistBizimAlakaMi(filepath.Base(y), string(bb)) {
+								alaka = true
+								adayBetikler = append(adayBetikler, y)
 							}
 						}
 					}
@@ -280,13 +369,16 @@ func mevcutAdaylariBul() []onarAday {
 		if cb, err := exec.Command("crontab", "-l").Output(); err == nil && len(cb) > 0 {
 			for _, satir := range strings.Split(string(cb), "\n") {
 				s := strings.TrimSpace(satir)
-				if s == "" || strings.HasPrefix(s, "#") || !plistBizimAlakaMi("", s) {
+				if s == "" || strings.HasPrefix(s, "#") {
 					continue
 				}
-				for _, parca := range strings.Fields(s) {
-					parca = strings.Trim(parca, `"'`)
-					ust := strings.ToLower(parca)
-					if strings.HasSuffix(ust, ".py") || strings.HasSuffix(ust, ".sh") || strings.HasSuffix(ust, ".js") {
+				satirAlaka := plistBizimAlakaMi("", s)
+				for _, parca := range satirdanBetikYollariCikar(s) {
+					bb, err := os.ReadFile(parca)
+					if err != nil {
+						continue
+					}
+					if satirAlaka || plistBizimAlakaMi(filepath.Base(parca), string(bb)) {
 						dosyaTara(parca)
 						bDizin := filepath.Dir(parca)
 						for _, ekAd := range []string{"ayar.json", "config.json", "anahtar", ".env"} {
@@ -295,6 +387,15 @@ func mevcutAdaylariBul() []onarAday {
 					}
 				}
 			}
+		}
+	}
+
+	// 5) Bellekte arka planda çalışan yabancı Python/kabuk döngüleri varsa betiklerinden aday çıkar
+	for _, cs := range calisanYabanciBetikler() {
+		dosyaTara(cs.betik)
+		bDizin := filepath.Dir(cs.betik)
+		for _, ekAd := range []string{"ayar.json", "config.json", "anahtar", ".env"} {
+			dosyaTara(filepath.Join(bDizin, ekAd))
 		}
 	}
 
@@ -317,11 +418,32 @@ func sha256HexYerel(b []byte) string {
 	return imzaMetniSha256(b)
 }
 
-// Eski/özel Python veya kabuk gönderici zamanlayıcılarını devre dışı bırakır ve betikleri yedek klasörüne taşır.
+func betikArsivle(yol string) {
+	if yol == "" || strings.ToLower(filepath.Base(yol)) == "kur.sh" {
+		return
+	}
+	yedekDizin := filepath.Join(dizin, "eski-betikler")
+	_ = os.MkdirAll(yedekDizin, 0o700)
+	hedef := filepath.Join(yedekDizin, filepath.Base(yol)+".devre-disi")
+	if err := os.Rename(yol, hedef); err != nil {
+		if b, err2 := os.ReadFile(yol); err2 == nil {
+			_ = os.WriteFile(hedef, b, 0o600)
+			_ = os.Remove(yol)
+		}
+	}
+}
+
+// Eski/özel Python veya kabuk gönderici zamanlayıcılarını ve çalışan döngülerini devre dışı bırakır.
 func yabanciZamanlayicilariTemizle() {
+	// 0) Arka planda bellekte çalışan yabancı Python/kabuk gönderici süreçlerini durdur ve betiklerini arşivle
+	for _, cs := range calisanYabanciBetikler() {
+		_ = exec.Command("kill", "-9", strconv.Itoa(cs.pid)).Run()
+		betikArsivle(cs.betik)
+		logYaz("yabancı çalışan gönderici süreci durduruldu: pid=%d (%s)", cs.pid, filepath.Base(cs.betik))
+	}
+
 	// 1) ~/.token-panosu içindeki özel .py / gonderici betiklerini etkisizleştir (veri kaybı olmasın diye yedekle)
 	if girisler, err := os.ReadDir(dizin); err == nil {
-		yedekDizin := filepath.Join(dizin, "eski-betikler")
 		for _, g := range girisler {
 			if g.IsDir() {
 				continue
@@ -329,8 +451,7 @@ func yabanciZamanlayicilariTemizle() {
 			ad := g.Name()
 			kucuk := strings.ToLower(ad)
 			if strings.HasSuffix(kucuk, ".py") || (strings.HasSuffix(kucuk, ".sh") && kucuk != "kur.sh") {
-				_ = os.MkdirAll(yedekDizin, 0o700)
-				_ = os.Rename(filepath.Join(dizin, ad), filepath.Join(yedekDizin, ad+".devre-disi"))
+				betikArsivle(filepath.Join(dizin, ad))
 			}
 		}
 	}
@@ -343,48 +464,47 @@ func yabanciZamanlayicilariTemizle() {
 			resmiPlist = filepath.Join(evDizini(), "Library", "LaunchAgents", "com.tokenpanosu.gonderici.plist")
 		}
 		girisler, err := os.ReadDir(laDizin)
-		if err != nil {
-			return
-		}
-		for _, g := range girisler {
-			if g.IsDir() || !strings.HasSuffix(strings.ToLower(g.Name()), ".plist") {
-				continue
-			}
-			pYol := filepath.Join(laDizin, g.Name())
-			if resmiPlist != "" && pYol == resmiPlist {
-				continue
-			}
-			st, err := os.Stat(pYol)
-			if err != nil || st.Size() > 128*1024 {
-				continue
-			}
-			pb, err := os.ReadFile(pYol)
-			if err != nil {
-				continue
-			}
-			icerik := string(pb)
-			alaka := plistBizimAlakaMi(g.Name(), icerik)
-			if !alaka {
+		if err == nil {
+			for _, g := range girisler {
+				if g.IsDir() || !strings.HasSuffix(strings.ToLower(g.Name()), ".plist") {
+					continue
+				}
+				pYol := filepath.Join(laDizin, g.Name())
+				if resmiPlist != "" && pYol == resmiPlist {
+					continue
+				}
+				st, err := os.Stat(pYol)
+				if err != nil || st.Size() > 128*1024 {
+					continue
+				}
+				pb, err := os.ReadFile(pYol)
+				if err != nil {
+					continue
+				}
+				icerik := string(pb)
+				alaka := plistBizimAlakaMi(g.Name(), icerik)
+				var bagliBetikler []string
 				for _, m := range plistStrRe.FindAllStringSubmatch(icerik, 30) {
-					arg := strings.TrimSpace(m[1])
-					ust := strings.ToLower(arg)
-					if strings.HasSuffix(ust, ".py") || strings.HasSuffix(ust, ".sh") {
-						if bb, err := os.ReadFile(arg); err == nil && plistBizimAlakaMi(filepath.Base(arg), string(bb)) {
+					for _, y := range satirdanBetikYollariCikar(m[1]) {
+						if bb, err := os.ReadFile(y); err == nil && (alaka || plistBizimAlakaMi(filepath.Base(y), string(bb))) {
 							alaka = true
-							break
+							bagliBetikler = append(bagliBetikler, y)
 						}
 					}
 				}
+				if !alaka {
+					continue
+				}
+				if runtime.GOOS == "darwin" && !testModu {
+					alan := fmt.Sprintf("gui/%d", os.Getuid())
+					_ = exec.Command("/bin/launchctl", "bootout", alan, pYol).Run()
+				}
+				_ = os.Remove(pYol)
+				for _, y := range bagliBetikler {
+					betikArsivle(y)
+				}
+				logYaz("yabancı zamanlayıcı temizlendi: %s", g.Name())
 			}
-			if !alaka {
-				continue
-			}
-			if runtime.GOOS == "darwin" && !testModu {
-				alan := fmt.Sprintf("gui/%d", os.Getuid())
-				_ = exec.Command("/bin/launchctl", "bootout", alan, pYol).Run()
-			}
-			_ = os.Remove(pYol)
-			logYaz("yabancı zamanlayıcı temizlendi: %s", g.Name())
 		}
 	}
 
@@ -396,13 +516,25 @@ func yabanciZamanlayicilariTemizle() {
 			degisti := false
 			for _, satir := range satirlar {
 				s := strings.TrimSpace(satir)
-				if s != "" && !strings.HasPrefix(s, "#") && plistBizimAlakaMi("", s) {
-					// macOS'ta resmî zamanlayıcı LaunchAgent'tır; Linux'ta ise resmî satır "# token-panosu" ile biter ve ikiliYolu()'nu çağırır
-					resmiLinux := runtime.GOOS == "linux" && strings.Contains(s, "# token-panosu") && strings.Contains(s, ikiliYolu())
-					if !resmiLinux {
-						degisti = true
-						logYaz("yabancı crontab satırı temizlendi")
-						continue
+				if s != "" && !strings.HasPrefix(s, "#") {
+					alaka := plistBizimAlakaMi("", s)
+					var cronBetikler []string
+					for _, y := range satirdanBetikYollariCikar(s) {
+						if bb, err := os.ReadFile(y); err == nil && (alaka || plistBizimAlakaMi(filepath.Base(y), string(bb))) {
+							alaka = true
+							cronBetikler = append(cronBetikler, y)
+						}
+					}
+					if alaka {
+						resmiLinux := runtime.GOOS == "linux" && strings.Contains(s, "# token-panosu") && strings.Contains(s, ikiliYolu())
+						if !resmiLinux {
+							degisti = true
+							for _, y := range cronBetikler {
+								betikArsivle(y)
+							}
+							logYaz("yabancı crontab satırı temizlendi")
+							continue
+						}
 					}
 				}
 				kalan = append(kalan, satir)
@@ -449,6 +581,12 @@ func onarKomutu(b bayraklar) error {
 	adaylar := mevcutAdaylariBul()
 	if len(adaylar) == 0 {
 		return errors.New("bu bilgisayarda mevcut eşleşme kaydı bulunamadı; panodan kod üretip '--kod XXXXX-XXXXX' ile kurun")
+	}
+
+	// Önce eski/yabancı Python döngülerini ve zamanlayıcıları durdur ki yeni gönderimle yarışmasın
+	yabanciZamanlayicilariTemizle()
+	if err := kendiniYerlestir(); err != nil {
+		return fmt.Errorf("program klasöre kopyalanamadı: %v", err)
 	}
 
 	mevcutAyar, _ := ayarOku()
@@ -513,10 +651,6 @@ func onarKomutu(b bayraklar) error {
 		fmt.Printf("Yapılandırma onarıldı (%s); ilk gönderim bir sonraki turda yeniden denenecek.\n", etiket)
 	}
 
-	yabanciZamanlayicilariTemizle()
-	if err := kendiniYerlestir(); err != nil {
-		return fmt.Errorf("program klasöre kopyalanamadı: %v", err)
-	}
 	uyariKur()
 	agyDurumSatiriKur()
 	if testModu {

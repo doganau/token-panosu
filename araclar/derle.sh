@@ -46,6 +46,12 @@ for hedef in darwin/arm64 darwin/amd64 linux/amd64 linux/arm64 windows/amd64 win
   if [ -n "$acik_n" ]; then
     bayrak="$bayrak -X main.acikNHex=$acik_n"
   fi
+  if command -v python3 >/dev/null 2>&1; then
+    muhur_ek="$(python3 araclar/imzala.py muhur-bayrak "$surum" "$sistem-$mimari" 2>/dev/null || true)"
+    if [ -n "$muhur_ek" ]; then
+      bayrak="$bayrak $muhur_ek"
+    fi
+  fi
   if [ "$sistem" = windows ]; then ad="$ad.exe"; bayrak="$bayrak -H=windowsgui"; fi
   (cd go && CGO_ENABLED=0 GOOS="$sistem" GOARCH="$mimari" go build -trimpath -ldflags "$bayrak" -o "../dist/indir/$ad" .)
   sha256_hesapla "dist/indir/$ad" > "dist/indir/$ad.sha256.txt"

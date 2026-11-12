@@ -1,12 +1,8 @@
-﻿# Token Panosu kurulumu ve onarımı (Windows, PowerShell)
-#   Yeni kurulum: & ([scriptblock]::Create((irm https://pano.ornek.com/kur.ps1))) -Kod XXXXX-XXXXX
-#   Onarım/güncelleme (kod gerekmez): & ([scriptblock]::Create((irm https://pano.ornek.com/kur.ps1)))
-# Bu bilgisayara uygun tek dosyalık programı indirir, özetini doğrular, %USERPROFILE%\.token-panosu
-# içine koyar ve eşleştirmeyi yapar. Python ya da başka bir şey kurmaz.
-param(
-  [Parameter(Mandatory = $false)][string]$Kod = "",
+﻿param(
+  [string]$Kod = "",
   [string]$Adres = $(if ($env:TOKEN_PANOSU_ADRES) { $env:TOKEN_PANOSU_ADRES } else { "https://pano.ornek.com" })
 )
+# Token Panosu Windows kurulumu ve onarimi (PowerShell)
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -29,7 +25,6 @@ if (-not $Beklenen -or $Beklenen -ne $Bulunan) {
 }
 Move-Item -Force $Gecici $Exe
 
-# Program pencere açmadan çalışacak biçimde derlendi; çıktısını görmek için boruya yönlendiriyoruz
 if ($Kod -and $Kod.Trim() -ne "") {
   & $Exe kur --url $Adres --kod $Kod 2>&1 | Out-Host
 } else {

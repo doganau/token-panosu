@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	Surum    = 30 // yeni sürüm yayınlanınca artırılır; imzalı güncelleme bunu kullanır
+	Surum    = 31 // yeni sürüm yayınlanınca artırılır; imzalı güncelleme ve ikili mührü bunu kullanır
 	Protokol = 2  // sunucu ile veri biçimi
 
 	yukEsigi      = 1.5               // 1 dk yük / çekirdek: üstündeyse (işlemci çok meşgul) otomatik çalıştırma o turu atlar
@@ -47,18 +47,17 @@ var (
 )
 
 func init() {
-	if d := os.Getenv("TOKEN_PANOSU_DIZIN"); d != "" {
-		dizin, testModu = d, true
-		return
+	if !muhurEtkin() {
+		if d := os.Getenv("TOKEN_PANOSU_DIZIN"); d != "" {
+			dizin, testModu = d, true
+			return
+		}
 	}
 	dizin = filepath.Join(evDizini(), ".token-panosu")
 }
 
 func evDizini() string {
-	if h, err := os.UserHomeDir(); err == nil && h != "" {
-		return h
-	}
-	return "."
+	return gercekEvDizini()
 }
 
 func ayarYolu() string     { return filepath.Join(dizin, "ayar.json") }
@@ -255,7 +254,11 @@ func main() {
 		} else if err = bildirimGoster(args[1], args[2]); err == nil {
 			fmt.Println("bildirim gösterildi")
 		}
-	case "_govde": // geliştirici testi: gönderilecek gövdeyi yazdırır, hiçbir şey göndermez
+	case "_govde": // geliştirici testi: gönderilecek gövdeyi yazdırır, hiçbir şey göndermez (mühürlü derlemede kapalı)
+		if muhurEtkin() {
+			err = errors.New("bu komut yalnızca geliştirici derlemelerinde kullanılabilir")
+			break
+		}
 		var g []byte
 		g, _, err = govdeHazirla(time.Now().Unix())
 		if err == nil {
@@ -463,6 +466,9 @@ func gonder() (bool, int) {
 		"x-timestamp": ts,
 		"x-signature": imzaHMAC(gizli, a.Cihaz, ts, govde),
 	}
+	for k, v := range muhurBasliklari(a.Cihaz, gizli, ts, govde) {
+		basliklar[k] = v
+	}
 	durum, cevap, err := postJSON(a.URL+"/api/gonder", govde, basliklar)
 	if err != nil {
 		logYaz("HATA: sunucuya ulaşılamadı: %v", err)
@@ -514,7 +520,9 @@ func govdeHazirla(simdi int64) ([]byte, sonuc, error) {
 	ek := toplaDiger(simdi)
 	s.sure += time.Since(ekBas)
 	s.okunan += ek.okunan
-	for _, eb := range ek.bulgular {
+	ekBulgular := append([]Bulgu{}, ek.bulgular...)
+	ekBulgular = append(ekBulgular, ortamButunlukBulgular()...)
+	for _, eb := range ekBulgular {
 		mevcut := false
 		for _, mb := range s.bulgular {
 			if mb.K == eb.K {

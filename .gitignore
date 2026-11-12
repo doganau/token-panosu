@@ -5,6 +5,7 @@
 .claude
 .DS_Store
 .imza-anahtari.pem
+.muhur-anahtari.key
 node_modules
 dist
 go/tokenpanosu

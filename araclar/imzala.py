@@ -13,9 +13,11 @@
 """
 import base64
 import hashlib
+import hmac
 import json
 import os
 import re
+import secrets
 import shutil
 import subprocess
 import sys
@@ -26,7 +28,9 @@ INDIR = os.path.join(KOK, "dist", "indir")
 ANA = os.path.join(KOK, "go", "main.go")
 MANIFEST = os.path.join(KOK, "istemci", "manifest.json")
 YEREL_PEM = os.path.join(KOK, ".imza-anahtari.pem")
+YEREL_MUHUR = os.path.join(KOK, ".muhur-anahtari.key")
 SERVIS, HESAP = "token-panosu-imza", "ozel-anahtar"
+MUHUR_SERVIS, MUHUR_HESAP = "token-panosu-muhur", "muhur-anahtari"
 
 
 def sh(*a, **k):
@@ -73,6 +77,64 @@ def acik_anahtar():
     if not veri:
         sys.exit(1)
     print(modulus_hesapla(veri))
+
+
+def muhur_oku_veya_uret(olustur=True):
+    ortam = os.environ.get("TOKEN_PANOSU_MUHUR_HEX", "").strip().lower()
+    if re.fullmatch(r"[0-9a-f]{64}", ortam):
+        return ortam
+    if os.path.isfile(YEREL_MUHUR):
+        deger = open(YEREL_MUHUR, "r", encoding="utf-8").read().strip().lower()
+        if re.fullmatch(r"[0-9a-f]{64}", deger):
+            return deger
+    if keychain_var_mi():
+        r = sh("security", "find-generic-password", "-s", MUHUR_SERVIS, "-a", MUHUR_HESAP, "-w", text=True)
+        deger = r.stdout.strip().lower() if r.returncode == 0 else ""
+        if re.fullmatch(r"[0-9a-f]{64}", deger):
+            return deger
+    if not olustur:
+        return ""
+    yeni = secrets.token_hex(32)
+    if keychain_var_mi():
+        r = sh("security", "add-generic-password", "-U", "-s", MUHUR_SERVIS, "-a", MUHUR_HESAP, "-w", yeni)
+        if r.returncode == 0:
+            return yeni
+    fd = os.open(YEREL_MUHUR, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write(yeni + "\n")
+    return yeni
+
+
+def muhur_anahtar():
+    # Yalnızca imzalı kurulumlarda (imza anahtarı varsa) otomatik mühür anahtarı üretir
+    if not anahtar_oku(sessiz=True) and not os.environ.get("TOKEN_PANOSU_MUHUR_HEX") and not os.path.isfile(YEREL_MUHUR):
+        sys.exit(1)
+    deger = muhur_oku_veya_uret(olustur=True)
+    if not deger:
+        sys.exit(1)
+    print(deger)
+
+
+def _b64u(b):
+    return base64.urlsafe_b64encode(b).decode("ascii").rstrip("=")
+
+
+def muhur_bayrak():
+    if len(sys.argv) < 4:
+        sys.exit("kullanım: imzala.py muhur-bayrak <sürüm> <hedef>")
+    surum, hedef = sys.argv[2].strip(), sys.argv[3].strip()
+    if not anahtar_oku(sessiz=True) and not os.environ.get("TOKEN_PANOSU_MUHUR_HEX") and not os.path.isfile(YEREL_MUHUR):
+        return
+    ana = muhur_oku_veya_uret(olustur=True)
+    if not ana:
+        return
+    k_hedef = hmac.new(bytes.fromhex(ana), f"tp-muhur-k1|{surum}|{hedef}".encode("utf-8"), hashlib.sha256).digest()
+    pad = os.urandom(32)
+    maske = hashlib.sha256(b"tp-acilim-v1|" + hedef.encode("utf-8") + b"|" + pad).digest()
+    sifreli = bytes(a ^ b for a, b in zip(k_hedef, maske))
+    p_a, p_b = _b64u(pad[:16]), _b64u(sifreli[:16])
+    p_c, p_d = _b64u(pad[16:]), _b64u(sifreli[16:])
+    print(f"-X main.mParcaA={p_a} -X main.mParcaB={p_b} -X main.mParcaC={p_c} -X main.mParcaD={p_d}")
 
 
 def anahtar_uret():
@@ -141,7 +203,33 @@ def imzala():
             if sh("openssl", "dgst", "-sha256", "-verify", pub, "-signature", s, p).returncode:
                 sys.exit("imza doğrulanamadı: " + ad)
             sonuc[hedef] = {"sha256": ozet, "imza": open(s, "rb").read().hex()}
-    json.dump({"ikili": {"surum": surum, "dosyalar": sonuc}}, open(MANIFEST, "w"), indent=1)
+    gecmis = {}
+    if os.path.isfile(MANIFEST):
+        try:
+            eski = json.load(open(MANIFEST, encoding="utf-8"))
+            if isinstance(eski.get("gecmis"), dict):
+                for ks, kd in eski["gecmis"].items():
+                    if str(ks).isdigit() and int(ks) >= 31 and int(ks) != surum and isinstance(kd, dict):
+                        gecmis[str(ks)] = kd
+            eski_ikili = eski.get("ikili")
+            if isinstance(eski_ikili, dict) and isinstance(eski_ikili.get("surum"), int):
+                es = eski_ikili["surum"]
+                if es >= 31 and es != surum and isinstance(eski_ikili.get("dosyalar"), dict):
+                    gecmis[str(es)] = {
+                        h: d["sha256"]
+                        for h, d in eski_ikili["dosyalar"].items()
+                        if isinstance(d, dict) and isinstance(d.get("sha256"), str)
+                    }
+        except Exception:
+            pass
+    # Yalnızca son 5 mühürlü sürümün özet geçmişini tut
+    if len(gecmis) > 5:
+        for ks in sorted(gecmis.keys(), key=lambda x: int(x))[:-5]:
+            gecmis.pop(ks, None)
+    cikti = {"ikili": {"surum": surum, "dosyalar": sonuc}}
+    if gecmis:
+        cikti["gecmis"] = gecmis
+    json.dump(cikti, open(MANIFEST, "w"), indent=1)
     print("İmzalandı: sürüm %d, %d dosya (%s)" % (surum, len(sonuc), ", ".join(sorted(sonuc))))
 
 
@@ -149,6 +237,8 @@ if __name__ == "__main__":
     komutlar = {
         "anahtar-uret": anahtar_uret,
         "acik-anahtar": acik_anahtar,
+        "muhur-anahtar": muhur_anahtar,
+        "muhur-bayrak": muhur_bayrak,
         "imzala": imzala,
         "imzasiz": imzasiz,
     }
