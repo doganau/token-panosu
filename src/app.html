@@ -4300,8 +4300,9 @@ function officeScene(d, groups, perDev, liveSet, maxUsd, asanlar = new Map(), op
   </section>`;
 }
 
-// Limit payını aşan gruplar (bu hafta, en güncel okumaya göre): panodaki çubukların hesabıyla aynı.
-// Dönüş: grup kimliği -> payını yüzde kaç puan aştığı (haftalık ve Fable / Claude&GPT özel kotasından büyük olanı) = dayak seviyesi
+// Limit payını aşan gruplar (bu hafta, en güncel okumaya göre):
+// Gemini ofisinde yalnızca ana odak olan Gemini modelleri haftalık kotası (L.pct) aşımı ve dayağı tetikler;
+// Claude & GPT özel kotası yalnızca ikincil bilgi çubuğunda gösterilir, dayak veya +% aşım etiketi üretmez.
 function payAsanlar(d, groups) {
   const out = new Map();
   const L = d.limit;
@@ -4311,7 +4312,7 @@ function payAsanlar(d, groups) {
   const payMap = grupPaylari(groups, ayar);
   const tolerans = ayar && ayar.ofis && Number.isFinite(ayar.ofis.asimEsik) ? ayar.ofis.asimEsik : 0;
   const grupOf = new Map();
-  for (const g of groups) { g._f = 0; g._gem = 0; g._3p = 0; for (const x of g.devs) grupOf.set(x.id, g); }
+  for (const g of groups) { g._f = 0; g._gem = 0; for (const x of g.devs) grupOf.set(x.id, g); }
   const ekle = (id, kullanilan, hak) => {
     const sinir = hak + tolerans;
     if (kullanilan >= sinir - 0.005) out.set(id, Math.max(out.get(id) || 0, kullanilan - hak));
@@ -4320,26 +4321,14 @@ function payAsanlar(d, groups) {
   if (sgl === "gemini") {
     for (const r of d.usage || []) {
       const g = grupOf.get(r.device_id);
-      if (!g) continue;
-      if (agyClaudeHavuzuMu(r.model)) g._3p += r.usd;
-      else g._gem += r.usd;
-    }
-    if (L.agy3pPencere && L.agy3pPencere.byDeviceUsd) {
-      for (const g of groups) {
-        g._3p = g.devs.reduce((a, dev) => a + (Number(L.agy3pPencere.byDeviceUsd[dev.id]) || 0), 0);
-      }
+      if (g && !agyClaudeHavuzuMu(r.model)) g._gem += r.usd;
     }
     const toplamGem = groups.reduce((a, g) => a + g._gem, 0);
-    const toplam3p = groups.reduce((a, g) => a + g._3p, 0);
-    const cpct = Number.isFinite(L.cpct) ? L.cpct : (Number.isFinite(ham["agy_claude.used_percentage"]) ? ham["agy_claude.used_percentage"] : null);
     for (const g of groups) {
       const hak = payMap.get(g.id) || 0;
       const effHak = hak <= 0 ? 0 : hak;
       if (L.pct !== null && L.pct !== undefined && toplamGem > 0 && (effHak > 0 || g._gem > 0)) {
         ekle(g.id, L.pct * (g._gem / toplamGem), effHak);
-      }
-      if (cpct !== null && toplam3p > 0 && (effHak > 0 || g._3p > 0)) {
-        ekle(g.id, cpct * (g._3p / toplam3p), effHak);
       }
     }
     return out;
