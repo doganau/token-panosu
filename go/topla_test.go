@@ -271,3 +271,35 @@ func TestCodexGeminiVeHesapOzeti(t *testing.T) {
 		t.Fatalf("chatgpt limit bilgisi eksik veya hatalı: %+v", cozulmus.Lp)
 	}
 }
+
+func TestClaudeHaftaSifirlamaAraDusus(t *testing.T) {
+	// 1) Cumartesi 09:00 TR (1794031200) gerçek sıfırlama (%100 -> %0), ardından Perşembe 03:40 TR (%91 -> %44) ara havuz düşüşü
+	var g masaustuGecmis
+	if err := json.Unmarshal([]byte(`{"version":1,"samples":[
+		{"t":1794029580000,"org":"org1","u":{"sd":100}},
+		{"t":1794031200000,"org":"org1","u":{"sd":0}},
+		{"t":1794443847000,"org":"org1","u":{"sd":91}},
+		{"t":1794444147000,"org":"org1","u":{"sd":44}},
+		{"t":1794445947000,"org":"org1","u":{"sd":51}}
+	]}`), &g); err != nil {
+		t.Fatal(err)
+	}
+	r, ok := claudeGecmisSifirlamaBul(g, "org1", 1794446000)
+	if !ok || r != 1794636000 {
+		t.Fatalf("ara düşüş haftalık sıfırlamayı bozdu: ok=%v r=%d (beklenen 1794636000)", ok, r)
+	}
+
+	// 2) İki hafta üst üste bilgisayar kapalıyken kesişen boşluklarla (%58 -> %16 ve bir sonraki hafta dar aralık) gerçek sıfırlama bulunmalı
+	var gKapali masaustuGecmis
+	if err := json.Unmarshal([]byte(fmt.Sprintf(`{"version":1,"samples":[
+		{"t":%d,"org":"org1","u":{"sd":58}},
+		{"t":%d,"org":"org1","u":{"sd":16}},
+		{"t":%d,"org":"org1","u":{"sd":95}},
+		{"t":%d,"org":"org1","u":{"sd":4}}
+	]}`, (1793426400-32*3600)*1000, (1793426400+5*3600)*1000, (1794031200-2*3600)*1000, (1794031200+2*3600)*1000)), &gKapali); err != nil {
+		t.Fatal(err)
+	}
+	if r2, ok2 := claudeGecmisSifirlamaBul(gKapali, "org1", 1794446000); !ok2 || r2 < 1794636000-2*3600 || r2 > 1794636000+2*3600 {
+		t.Fatalf("uzun boşluklu haftalık sıfırlama bulunamadı: ok=%v r=%d", ok2, r2)
+	}
+}

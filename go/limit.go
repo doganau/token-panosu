@@ -189,7 +189,14 @@ func claudeGecmisSifirlamaBul(g masaustuGecmis, aktifOrg string, simdi int64) (i
 			continue
 		}
 		dusus := onceki.sd - simdiki.sd
-		if dusus >= 10 || (onceki.sd >= 3 && simdiki.sd == 0) {
+		// Gerçek haftalık sıfırlama sayacı 0%'a indirir; örnekler arası boşluk kısayken (ör. 5 dk)
+		// ara havuz ayrımı nedeniyle oluşan kısmi düşüşler (ör. %91 -> %44) haftalık sıfırlama değildir.
+		gecenSaat := float64(simdiki.sn-onceki.sn) / 3600.0
+		azamiSonraki := 12.0 + gecenSaat*1.2
+		if azamiSonraki > 50 {
+			azamiSonraki = 50
+		}
+		if (dusus >= 10 || (onceki.sd >= 3 && simdiki.sd == 0)) && simdiki.sd <= azamiSonraki {
 			araliklar = append(araliklar, claudeSifirlamaAralik{
 				basDk:   onceki.sn / 60,
 				bitDk:   simdiki.sn / 60,

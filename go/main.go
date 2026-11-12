@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	Surum    = 26 // yeni sürüm yayınlanınca artırılır; imzalı güncelleme bunu kullanır
+	Surum    = 27 // yeni sürüm yayınlanınca artırılır; imzalı güncelleme bunu kullanır
 	Protokol = 2  // sunucu ile veri biçimi
 
 	yukEsigi      = 1.5               // 1 dk yük / çekirdek: üstündeyse (işlemci çok meşgul) otomatik çalıştırma o turu atlar
