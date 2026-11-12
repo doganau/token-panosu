@@ -4,7 +4,7 @@
 
 ## Platform
 
-web + hafif çapraz platform yerel gönderici (macOS, Linux, Windows — sıfır haricî bağımlılıklı Go ikilisi)
+web
 
 ## Users
 Claude Code, ChatGPT (Codex CLI) ve Gemini CLI araçlarını birden fazla bilgisayarda ya da ortak abonelik paylaşan küçük bir ekipte kullanan geliştiriciler. Hangi bilgisayarın veya üyenin haftalık ve 5 saatlik abonelik limitini ne kadar tükettiğini tek bakışta görmek, limit paylaşımını adil yönetmek ve tüm sistemi kendi ücretsiz Cloudflare hesabında barındırmak isterler.

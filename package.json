@@ -1,6 +1,6 @@
 {
   "name": "token-panosu",
-  "version": "40.0.0",
+  "version": "41.0.0",
   "private": true,
   "description": "Claude Code, OpenAI Codex CLI, Google Gemini CLI ve Antigravity için sıfır maliyetli, izometrik canlı ofis simülasyonlu açık kaynak ekip kota ve token panosu.",
   "license": "MIT",

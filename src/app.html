@@ -443,37 +443,53 @@ section { margin-top: 28px; }
 .card-head h2 svg, .ayar-alan label svg { width: 17px; height: 17px; flex-shrink: 0; vertical-align: -3px; }
 .card-sub { color: var(--ink-3); font-size: 13.5px; margin: -6px 0 16px; max-width: 72ch; }
 
-/* Özet KPI şeridi */
+/* Özet KPI şeridi (gürültüsüz, tek çerçeveli ince ayraçlı şerit) */
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
+  gap: 0;
   margin-top: 18px;
-}
-.kpi {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--r);
-  padding: 16px 18px;
   box-shadow: var(--shadow-card);
-  display: flex; flex-direction: column; justify-content: space-between; gap: 6px;
+  overflow: hidden;
+}
+.kpi {
+  background: transparent;
+  border: 0;
+  border-inline-start: 1px solid var(--line);
+  border-radius: 0;
+  padding: 16px 20px;
+  box-shadow: none;
+  display: flex; flex-direction: column; justify-content: space-between; gap: 5px;
   min-width: 0;
 }
+.kpi:first-child { border-inline-start: 0; }
 .kpi-etiket {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
   font-size: 12.5px; font-weight: 600; color: var(--ink-3);
 }
 .kpi-deger {
   font-size: clamp(20px, 2.3vw, 26px); font-weight: 800; line-height: 1.15;
-  letter-spacing: -0.02em; color: var(--ink);
+  letter-spacing: -0.02em; color: var(--ink); font-variant-numeric: tabular-nums;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .kpi-deger.kpi-eposta {
-  font-size: clamp(13.5px, 1.35vw, 16.5px); font-weight: 700; letter-spacing: -0.01em;
+  font-size: clamp(13.5px, 1.35vw, 16px); font-weight: 700; letter-spacing: -0.01em;
 }
-.kpi-alt { font-size: 12.5px; color: var(--ink-3); line-height: 1.35; }
+.kpi-alt { font-size: 12.5px; color: var(--ink-3); line-height: 1.38; font-variant-numeric: tabular-nums; }
 .kpi-alt a { color: var(--ink-2); font-weight: 600; text-decoration: none; }
 .kpi-alt a:hover { color: var(--ink); text-decoration: underline; }
+
+/* Veri yoğun bölümlerde düzen yalıtımı (60 FPS ofis animasyonu alt tabloları yeniden hesaplatmaz) */
+.veri-kart {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 320px;
+}
+@supports not (content-visibility: auto) {
+  .veri-kart { contain: layout style paint; }
+}
 
 /* Rozetler */
 .pill {
@@ -726,99 +742,56 @@ input:user-invalid, select:user-invalid { border-color: var(--danger); }
 .office-cerceve.yakin .office { width: 168%; min-width: 560px; max-width: none; }
 .office svg.scene { display: block; width: 100%; height: auto; user-select: none; }
 
-/* Masa kartları: kapsayıcı genişliğine (office) göre akışkan ölçeklenir */
+/* Masa etiketleri: ekranları kapatmayan kompakt tek satırlık hap etiket */
 .desk-label {
-  position: absolute; transform: translate(-50%, -100%); text-align: center; text-decoration: none;
-  background: rgba(13, 18, 24, .9); backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px);
-  border-radius: 7px; padding: 3px 6.5px 3.5px; min-width: 0; max-width: 114px; z-index: 2;
-  border: 1px solid rgba(255, 255, 255, .13);
-  box-shadow: 0 6px 16px -6px rgba(0, 0, 0, .62);
+  position: absolute; transform: translate(-50%, -100%); text-decoration: none;
+  display: inline-flex; align-items: center; gap: 4.5px;
+  background: rgba(13, 18, 24, .88); backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px);
+  border-radius: 999px; padding: 3px 8.5px; min-width: 0; max-width: 158px; z-index: 2;
+  border: 1px solid rgba(255, 255, 255, .14);
+  box-shadow: 0 4px 12px -4px rgba(0, 0, 0, .55);
+  white-space: nowrap; font-variant-numeric: tabular-nums;
 }
 .desk-label.multi, button.desk-label { cursor: pointer; font: inherit; color: #f2f5f8; }
-.desk-label:hover { border-color: rgba(255, 255, 255, .28); box-shadow: 0 10px 22px -6px rgba(0, 0, 0, .74); z-index: 3; }
-.desk-label b {
-  display: flex; align-items: center; justify-content: center; gap: 3.5px;
-  font-size: clamp(0.56rem, 0.44rem + 0.42vw, 0.76rem); line-height: 1.16;
-  white-space: nowrap; color: #f2f5f8; max-width: 100%;
-}
-.desk-label .dl-ad { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 88px; }
-.desk-label .dot { display: inline-block; width: 6px; height: 6px; }
-.desk-label .dl-alt {
-  display: flex; align-items: baseline; justify-content: center; gap: 4px;
-  margin-top: 1px; white-space: nowrap;
+.desk-label:hover { border-color: rgba(255, 255, 255, .3); background: rgba(17, 24, 32, .96); z-index: 3; }
+.desk-label .dot { display: inline-block; width: 6.5px; height: 6.5px; flex-shrink: 0; }
+.desk-label .dl-ad {
+  font-size: clamp(0.6rem, 0.46rem + 0.36vw, 0.76rem); font-weight: 650; line-height: 1.15;
+  color: #e6edf3; overflow: hidden; text-overflow: ellipsis; max-width: 78px;
 }
 .desk-label .amt {
-  display: inline-block; font-size: clamp(0.64rem, 0.48rem + 0.56vw, 0.92rem);
-  font-weight: 800; line-height: 1.14; letter-spacing: -0.015em; color: #ffffff;
+  font-size: clamp(0.62rem, 0.48rem + 0.38vw, 0.78rem);
+  font-weight: 800; line-height: 1.15; letter-spacing: -0.01em; color: #ffffff;
+  padding-inline-start: 4px; border-inline-start: 1px solid rgba(255, 255, 255, .14);
 }
-.desk-label small {
-  font-size: clamp(0.52rem, 0.42rem + 0.28vw, 0.68rem); line-height: 1.15;
-  color: #92a0ae; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 132px;
+.desk-label small.dl-uyari {
+  display: inline-block; font-size: 0.62rem; font-weight: 700; line-height: 1;
+  padding: 1.5px 4.5px; border-radius: 999px;
 }
-.desk-label small.dl-durum { display: none; }
-.desk-label small.dl-uyari { display: inline-block; font-weight: 650; }
-.desk-label .dl-asim-ek { display: none; }
-.desk-label small.warn { color: #e5ac4c; }
-.desk-label small.bad { color: #f2796e; font-weight: 650; }
-.desk-label .dvs {
-  display: none; justify-content: center; gap: 2px 7px; flex-wrap: wrap;
-  margin-top: 4px; padding-top: 4px; border-top: 1px solid rgba(255, 255, 255, .1);
-}
-.desk-label .dvs a {
-  display: inline-flex; align-items: center; gap: 4px; font-size: 0.65rem; font-weight: 600;
-  color: #c3ccd6; text-decoration: none; white-space: nowrap; min-height: 20px; max-width: 80px;
-}
-.desk-label .dvs a span { overflow: hidden; text-overflow: ellipsis; }
-.desk-label .dvs a:hover { color: #fff; text-decoration: underline; }
-.desk-label .dvs .dot { display: inline-block; width: 6px; height: 6px; }
+.desk-label small.warn { color: #ffd580; background: rgba(229, 172, 76, .18); }
+.desk-label small.bad { color: #ffb4ad; background: rgba(242, 121, 110, .22); }
 .ldv { display: block; color: var(--ink-3); font-size: 12.5px; font-weight: 500; }
 .desk-label::after {
-  content: ""; position: absolute; left: calc(50% + var(--ok-x, 0px)); bottom: -3.5px;
-  width: 6.5px; height: 6.5px; background: rgba(13, 18, 24, .92);
-  transform: translateX(-50%) rotate(45deg); border-radius: 1.5px;
-  border-right: 1px solid rgba(255, 255, 255, .13); border-bottom: 1px solid rgba(255, 255, 255, .13);
-}
-@media (min-width: 680px) {
-  .desk-label { padding: 5px 9px 5.5px; border-radius: 8px; max-width: 154px; }
-  .desk-label .dl-ad { max-width: 124px; }
-  .desk-label .dl-alt { flex-direction: column; align-items: center; gap: 1px; }
-  .desk-label .dl-asim-ek { display: inline; }
-  .office:not(.many) .desk-label small.dl-durum { display: block; }
-  .desk-label .dvs { display: flex; }
+  content: ""; position: absolute; left: calc(50% + var(--ok-x, 0px)); bottom: -3px;
+  width: 5.5px; height: 5.5px; background: rgba(13, 18, 24, .92);
+  transform: translateX(-50%) rotate(45deg); border-radius: 1px;
+  border-right: 1px solid rgba(255, 255, 255, .14); border-bottom: 1px solid rgba(255, 255, 255, .14);
 }
 @supports (container-type: inline-size) {
-  @media (min-width: 680px) {
-    .desk-label { padding: 3px 6.5px 3.5px; border-radius: 7px; max-width: 114px; }
-    .desk-label .dl-ad { max-width: 88px; }
-    .desk-label .dl-alt { flex-direction: row; align-items: baseline; gap: 4px; }
-    .desk-label .dl-asim-ek { display: none; }
-    .office:not(.many) .desk-label small.dl-durum { display: none; }
-    .desk-label .dvs { display: none; }
-  }
-  @container office (min-width: 540px) {
-    .desk-label { padding: 4.5px 8.5px 5px; border-radius: 8px; max-width: 148px; }
-    .desk-label .dl-ad { max-width: 118px; }
-    .desk-label .dot { width: 7px; height: 7px; }
-    .desk-label .dl-alt { flex-direction: column; align-items: center; gap: 1px; }
-    .desk-label .dl-asim-ek { display: inline; }
-    .desk-label::after { width: 8px; height: 8px; bottom: -4.5px; }
-    .office:not(.many) .desk-label small.dl-durum { display: block; }
-  }
-  @container office (min-width: 720px) {
-    .desk-label { padding: 5px 9.5px 6px; max-width: 162px; }
-    .desk-label .dl-ad { max-width: 132px; }
-    .office:not(.many) .desk-label .dvs { display: flex; }
+  @container office (max-width: 520px) {
+    .desk-label { padding: 2.5px 6.5px; gap: 3.5px; max-width: 122px; }
+    .desk-label .dl-ad { max-width: 56px; }
+    .desk-label small.dl-uyari { display: none; }
   }
 }
 @supports (font-size: 1cqi) {
-  .desk-label b { font-size: clamp(0.56rem, 0.41rem + 0.48cqi, 0.76rem); }
-  .desk-label .amt { font-size: clamp(0.64rem, 0.45rem + 0.64cqi, 0.92rem); }
-  .desk-label small { font-size: clamp(0.52rem, 0.4rem + 0.32cqi, 0.68rem); }
+  .desk-label .dl-ad { font-size: clamp(0.58rem, 0.42rem + 0.42cqi, 0.76rem); }
+  .desk-label .amt { font-size: clamp(0.6rem, 0.44rem + 0.44cqi, 0.78rem); }
 }
 .desk-hit { cursor: pointer; }
 @media (hover: hover) { .desk-hit:hover { filter: brightness(1.1); } }
 .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
-.dot.on { background: var(--screen-on); box-shadow: 0 0 6px var(--screen-on); }
+.dot.on { background: var(--screen-on); outline: 2px solid color-mix(in oklab, var(--screen-on) 28%, transparent); }
 .dot.stale { background: var(--warn); }
 .dot.bad { background: var(--danger); }
 .dot.idle { background: var(--ink-3); }
@@ -841,33 +814,43 @@ input:user-invalid, select:user-invalid { border-color: var(--danger); }
 .kisi-etiket text { fill: #f2f4f3; font: 600 7.4px/1 Figtree, system-ui, sans-serif; letter-spacing: .01em; }
 .dayak-etiket rect { fill: #d94a3f; stroke: #ff9c93; stroke-width: .65; }
 .dayak-etiket text { fill: #fff; font: 700 6.8px/1 Figtree, system-ui, sans-serif; }
+/* Karakterlere bitişik, sahneyi kapatmayan minimal mikro sohbet balonu */
 .ofis-balonlar { position: absolute; inset: 0; pointer-events: none; z-index: 4; overflow: visible; }
 .ofis-balon {
-  position: absolute; width: max-content; max-width: clamp(104px, 31vw, 188px);
-  background: rgba(18, 24, 28, .93); color: #edf2f0;
+  position: absolute; display: inline-block;
+  width: max-content; max-width: 120px;
+  background: rgba(13, 18, 25, .88); color: #eef3f8;
   backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);
-  border-radius: 6.5px; padding: 3px 6.5px 3.5px;
-  font-family: Figtree, system-ui, sans-serif; font-weight: 500;
-  font-size: clamp(0.54rem, 0.42rem + 0.36vw, 0.72rem); line-height: 1.24;
-  overflow-wrap: break-word;
-  box-shadow: 0 5px 14px -4px rgba(0, 0, 0, .58), 0 0 0 1px rgba(255, 255, 255, .15);
+  border-radius: 6px; padding: 2px 6px;
+  font-size: 9.5px; font-weight: 500; line-height: 1.2; letter-spacing: -0.005em;
+  text-wrap: balance;
+  border: 1px solid rgba(255, 255, 255, .15);
+  border-inline-start: 2px solid var(--pin-renk, rgba(255, 255, 255, .4));
+  box-shadow: 0 3px 9px -3px rgba(0, 0, 0, .55);
   transform: translate(-50%, -100%); will-change: left, top, opacity;
 }
-@supports (font-size: 1cqi) {
-  .ofis-balon {
-    max-width: clamp(106px, 32cqi, 198px);
-    font-size: clamp(0.54rem, 0.4rem + 0.44cqi, 0.72rem);
-  }
-  @container office (min-width: 620px) {
-    .ofis-balon { padding: 4px 7.5px 4.5px; border-radius: 7.5px; }
+.ofis-balon .ob-ad { font-weight: 700; color: #ffffff; margin-right: 3.5px; }
+.ofis-balon::after {
+  content: ""; position: absolute; left: calc(50% + var(--ok-x, 0px)); bottom: -2.8px;
+  width: 4.5px; height: 4.5px; background: rgba(13, 18, 25, .92);
+  transform: translateX(-50%) rotate(45deg);
+  border-right: 1px solid rgba(255, 255, 255, .16);
+  border-bottom: 1px solid rgba(255, 255, 255, .16);
+}
+.ofis-balon.kavga-b {
+  background: rgba(48, 16, 15, .92); color: #ffece9;
+  border-color: rgba(242, 121, 110, .42);
+  border-inline-start: 2px solid #f2796e;
+}
+.ofis-balon.kavga-b::after {
+  background: rgba(48, 16, 15, .94);
+  border-color: rgba(242, 121, 110, .42);
+}
+@supports (container-type: inline-size) {
+  @container office (max-width: 560px) {
+    .ofis-balon { max-width: 102px; font-size: 9px; padding: 2px 5px; border-radius: 5.5px; }
   }
 }
-.ofis-balon .ob-ad { display: inline-flex; align-items: center; gap: 3px; font-weight: 700; color: #b8c4c1; margin-right: 3px; }
-.ofis-balon .ob-ad i { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
-.ofis-balon .ob-ok { position: absolute; width: 5.5px; height: 5.5px; background: rgba(18, 24, 28, .95); transform: translate(-50%, -50%) rotate(45deg); }
-.ofis-balon.kavga-b { background: rgba(48, 19, 17, .94); color: #fff4f2; box-shadow: 0 5px 14px -4px rgba(0, 0, 0, .6), 0 0 0 1px rgba(240, 120, 109, .55); }
-.ofis-balon.kavga-b .ob-ad { color: #ffb4ad; }
-.ofis-balon.kavga-b .ob-ok { background: rgba(48, 19, 17, .96); }
 .kavga-bulutlari { pointer-events: none; }
 .kavga-bulutlari .toz { fill: #efe8d8; stroke: #cbbda2; stroke-width: .9; opacity: .92; }
 .kavga-bulutlari .cizgi { stroke: #ffd24c; stroke-width: 1.5; stroke-linecap: round; }
@@ -1000,18 +983,20 @@ td a:hover { color: var(--accent-top); text-decoration: underline; }
 .lhead p { margin: 0; }
 .lhead-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; }
 .lbig { font-size: clamp(34px, 6.5vw, 52px); font-weight: 800; line-height: 1.05; letter-spacing: -0.025em; font-variant-numeric: tabular-nums; margin-top: 4px !important; }
-.llist { list-style: none; margin: 18px 0 0; padding: 0; display: grid; gap: 12px; }
+.llist { list-style: none; margin: 14px 0 0; padding: 0; border-top: 1px solid var(--line); display: grid; gap: 0; }
 .lrow {
   display: grid; grid-template-columns: minmax(90px, 180px) 1fr auto; gap: 14px; align-items: center;
-  padding: 10px 14px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line);
+  padding: 12px 2px; border: 0; border-bottom: 1px solid var(--line); background: transparent; border-radius: 0;
 }
+.lrow:last-child { border-bottom: 0; padding-bottom: 2px; }
 .lrow .ln { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
-.lbar { position: relative; height: 10px; background: var(--surface-3); border-radius: 999px; overflow: hidden; }
+.lbar { position: relative; height: 9px; background: var(--surface-3); border-radius: 999px; overflow: hidden; }
 .lbar i { position: absolute; inset: 0 auto 0 0; background: var(--accent); border-radius: 999px; }
 .lbar i.over { background: var(--danger); }
-.lmid { display: grid; gap: 6px; min-width: 0; }
+.lmid { display: grid; gap: 5px; min-width: 0; }
 .fbar { position: relative; height: 5px; background: var(--surface-3); border-radius: 999px; overflow: hidden; }
 .fbar i { position: absolute; inset: 0 auto 0 0; background: var(--ok); border-radius: 999px; }
+.fbar i.agy-3p { background: #8b5cf6; }
 .fbar i.over { background: var(--danger); }
 .flab { color: var(--ink-3); font-size: 12px; font-variant-numeric: tabular-nums; line-height: 1.2; }
 .lv { display: grid; text-align: right; font-variant-numeric: tabular-nums; }
@@ -1117,16 +1102,20 @@ tr.best td { font-weight: 700; color: var(--ink); background: var(--accent-soft)
 .kilit-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
+  gap: 0;
   margin-top: 16px;
+  border-top: 1px solid var(--line);
 }
 .kilit-kart {
-  background: var(--surface-2);
-  border: 1px solid var(--line);
-  border-radius: 11px;
-  padding: 16px 18px;
+  background: transparent;
+  border: 0;
+  border-inline-start: 1px solid var(--line);
+  border-radius: 0;
+  padding: 16px 18px 4px;
   display: flex; flex-direction: column; justify-content: space-between; gap: 12px;
 }
+.kilit-kart:first-child { border-inline-start: 0; padding-inline-start: 0; }
+.kilit-kart:last-child { padding-inline-end: 0; }
 .kilit-ust { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .kilit-ust b { display: inline-flex; align-items: center; gap: 7px; font-size: 15px; }
 .kilit-ust b svg { width: 16px; height: 16px; }
@@ -1207,20 +1196,20 @@ dialog .actions { display: flex; gap: 10px; justify-content: flex-end; margin-to
 .ayar-alan label { margin: 0; }
 .ayar-ipucu { font-size: 12.5px; color: var(--ink-3); margin: 0; line-height: 1.4; }
 .ayar-kutu-grup {
-  border: 1px solid var(--line); border-radius: 11px;
-  padding: 12px 16px 14px; margin: 0 0 16px;
-  background: var(--surface-2); min-width: 0;
+  border: 0; border-top: 1px solid var(--line); border-radius: 0;
+  padding: 14px 0 4px; margin: 4px 0 16px;
+  background: transparent; min-width: 0;
 }
-.ayar-kutu-grup legend { font-weight: 700; font-size: 13.5px; padding: 0 6px; color: var(--ink); }
+.ayar-kutu-grup legend { font-weight: 700; font-size: 13.5px; padding: 0 8px 0 0; color: var(--ink); }
 .radyo-satir { display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: center; margin-top: 4px; }
 .radyo-eleman { display: inline-flex; align-items: center; gap: 7px; }
 .radyo-eleman input[type="radio"] { inline-size: 17px; block-size: 17px; margin: 0; cursor: pointer; flex-shrink: 0; }
 .radyo-eleman label { margin: 0; font-weight: 500; font-size: 14px; color: var(--ink); cursor: pointer; }
-.anahtar-liste { display: grid; gap: 10px; margin-bottom: 18px; }
+.anahtar-liste { display: grid; gap: 0; margin-bottom: 18px; border-top: 1px solid var(--line); }
 .anahtar-satir {
   display: flex; align-items: flex-start; gap: 11px;
-  padding: 12px 14px; border-radius: 10px;
-  background: var(--surface-2); border: 1px solid var(--line);
+  padding: 12px 2px; border: 0; border-bottom: 1px solid var(--line);
+  background: transparent; border-radius: 0;
 }
 .ak-etiket {
   display: inline-flex; align-items: flex-start; gap: 10px;
@@ -1232,11 +1221,11 @@ dialog .actions { display: flex; gap: 10px; justify-content: flex-end; margin-to
 .kayit-durum { font-size: 13.5px; font-weight: 600; color: var(--ok); }
 .kayit-durum.hata { color: var(--danger); }
 
-.pay-satir-liste { display: grid; gap: 10px; margin: 12px 0 16px; }
+.pay-satir-liste { display: grid; gap: 0; margin: 12px 0 16px; border-top: 1px solid var(--line); }
 .pay-satir {
   display: grid; grid-template-columns: minmax(120px, 1fr) 120px minmax(110px, auto);
-  gap: 12px; align-items: center; padding: 10px 14px;
-  border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line);
+  gap: 12px; align-items: center; padding: 10px 2px;
+  border: 0; border-bottom: 1px solid var(--line); background: transparent; border-radius: 0;
 }
 .pay-satir b { overflow-wrap: anywhere; }
 .pay-onizleme { text-align: right; font-variant-numeric: tabular-nums; font-size: 13.5px; color: var(--ink-2); }
@@ -1261,10 +1250,10 @@ dialog .actions { display: flex; gap: 10px; justify-content: flex-end; margin-to
 .karakter-alanlar select { padding: 6px 8px; min-block-size: 34px; font-size: 13px; }
 .karakter-ust { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 2px; }
 
-.disa-aktar-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-top: 12px; }
+.disa-aktar-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 0; margin-top: 12px; border-top: 1px solid var(--line); }
 .disa-kart {
   display: flex; flex-direction: column; justify-content: space-between; gap: 10px;
-  padding: 14px 16px; border-radius: 11px; background: var(--surface-2); border: 1px solid var(--line);
+  padding: 14px 16px 6px 0; border-radius: 0; background: transparent; border: 0; border-bottom: 1px solid var(--line);
 }
 .disa-kart p { margin: 0; font-size: 13px; color: var(--ink-3); }
 .satir-ici-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
@@ -1338,7 +1327,11 @@ dialog .actions { display: flex; gap: 10px; justify-content: flex-end; margin-to
 
 @media (max-width: 980px) {
   .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .kpi:nth-child(2n + 1) { border-inline-start: 0; }
+  .kpi:nth-child(n + 3) { border-block-start: 1px solid var(--line); }
   .kilit-grid { grid-template-columns: 1fr; }
+  .kilit-kart { border-inline-start: 0; border-bottom: 1px solid var(--line); padding-inline: 0; padding-bottom: 14px; }
+  .kilit-kart:last-child { border-bottom: 0; padding-bottom: 0; }
   .bar-row { flex-wrap: wrap; gap: 8px 12px; padding-block: 10px; }
   .sgl-nav { order: 4; flex: 1 1 100%; min-width: 0; max-width: 100%; justify-content: flex-start; }
   .nav { order: 2; }
@@ -1401,7 +1394,7 @@ dialog .actions { display: flex; gap: 10px; justify-content: flex-end; margin-to
   .karakter-onizleme { height: 112px; }
 }
 @media (max-width: 520px) {
-  .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; margin-top: 14px; }
+  .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 14px; }
   .kpi { padding: 12px 13px; gap: 4px; }
   .kpi-etiket { font-size: 11.5px; gap: 4px; flex-wrap: wrap; }
   .kpi-deger { font-size: clamp(17px, 4.8vw, 21px); }
@@ -1415,8 +1408,10 @@ dialog .actions { display: flex; gap: 10px; justify-content: flex-end; margin-to
 }
 @media (max-width: 345px) {
   .kpi-grid { grid-template-columns: 1fr; }
+  .kpi { border-inline-start: 0; }
+  .kpi:nth-child(n + 2) { border-block-start: 1px solid var(--line); }
 }
-/* Açık kaynak ürün vitrini (/), canlı simülasyon kumandası ve sağlayıcıya özel telemetri */
+/* Açık kaynak ürün vitrini (/) ve canlı simülasyon kumandası */
 .landing-hero {
   position: relative;
   padding: clamp(22px, 3.5vw, 38px) clamp(20px, 3.5vw, 38px);
@@ -1427,7 +1422,6 @@ dialog .actions { display: flex; gap: 10px; justify-content: flex-end; margin-to
     linear-gradient(180deg, var(--surface) 0%, color-mix(in oklab, var(--surface) 82%, var(--surface-2)) 100%);
   box-shadow: var(--shadow-card);
 }
-.hero-rozetler { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
 .landing-hero h1 {
   font-size: clamp(28px, 4.1vw, 48px);
   line-height: 1.08;
@@ -1533,45 +1527,6 @@ dialog .actions { display: flex; gap: 10px; justify-content: flex-end; margin-to
 }
 .eko-maddeler b { color: var(--ink); font-weight: 650; }
 
-/* Sağlayıcıya özel telemetri şeridi (/pano & önizleme) */
-.telemetri-kart {
-  margin-top: 16px; padding: 16px 20px; border-radius: var(--r);
-  background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-card);
-  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 20px;
-}
-.tm-hucre { display: flex; flex-direction: column; justify-content: space-between; gap: 6px; min-width: 0; }
-.tm-ust { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12.5px; font-weight: 600; color: var(--ink-3); }
-.tm-deger { font-size: 17px; font-weight: 800; letter-spacing: -0.015em; color: var(--ink); display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; }
-.tm-deger small { font-size: 12px; font-weight: 600; color: var(--ink-3); }
-.tm-cubuk {
-  display: flex; height: 8px; border-radius: 999px; overflow: hidden;
-  background: var(--surface-3); gap: 2px;
-}
-.tm-cubuk > i { display: block; height: 100%; border-radius: 999px; min-width: 3px; }
-.tm-etiketler { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--ink-2); }
-.tm-etiketler span { display: inline-flex; align-items: center; gap: 5px; }
-.tm-nokta { width: 7px; height: 7px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
-
-.agy-havuzlar {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 10px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line);
-}
-.agy-havuz {
-  padding: 10px 13px; border-radius: 10px;
-  background: var(--surface-2); border: 1px solid var(--line);
-  display: grid; gap: 6px;
-}
-.agy-havuz-ust { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 12.5px; }
-.agy-havuz-ust b { color: var(--ink); font-size: 13.5px; }
-.agy-havuz-alt { font-size: 11.5px; color: var(--ink-3); }
-.agy-havuz-uyeler {
-  margin: 4px 0 0; padding: 6px 0 0; list-style: none;
-  border-top: 1px dashed var(--line); display: grid; gap: 3px;
-  font-size: 11.5px; color: var(--ink-2);
-}
-.agy-havuz-uyeler li { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-.agy-havuz-uyeler li b { font-size: 11.5px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
-
 .izin-alan { margin-top: 12px; padding: 10px 12px; border-radius: var(--r-sm); background: var(--surface-2); border: 1px solid var(--line); }
 .izin-alan-baslik { display: block; font-size: 13px; font-weight: 600; color: var(--ink-2); margin-bottom: 6px; }
 .izin-secim-satir { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
@@ -1587,7 +1542,7 @@ dialog .actions { display: flex; gap: 10px; justify-content: flex-end; margin-to
 }
 .cli-kutu {
   padding: 14px 16px; border-radius: 11px;
-  background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-card);
+  background: var(--surface); border: 1px solid var(--line);
   display: grid; gap: 6px;
 }
 .cli-kutu b { font-size: 14px; color: var(--ink); }
@@ -1606,7 +1561,6 @@ dialog .actions { display: flex; gap: 10px; justify-content: flex-end; margin-to
 @media (max-width: 980px) {
   .ozet-serit { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ekosistem-grid { grid-template-columns: 1fr; }
-  .telemetri-kart { grid-template-columns: 1fr; gap: 14px; }
 }
 @media (max-width: 560px) {
   .ozet-serit { grid-template-columns: 1fr; }
@@ -1615,9 +1569,9 @@ dialog .actions { display: flex; gap: 10px; justify-content: flex-end; margin-to
   .demo-secici button { flex: 1 1 auto; justify-content: center; padding: 6px 8px; font-size: 12px; }
 }
 @media (forced-colors: active) {
-  .btn, .tema-btn, .card, .kpi, .kilit-kart, .sgl-nav, .eko-kart, .telemetri-kart, .demo-kumanda { border: 1px solid ButtonText; }
+  .btn, .tema-btn, .card, .kpi-grid, .sgl-nav, .eko-kart, .demo-kumanda { border: 1px solid ButtonText; }
   .sgl-link[aria-current="true"]::after, .nav a[aria-current="page"]::after, .os-tabs [role="tab"][aria-selected="true"]::after, .ayar-nav a[aria-current="page"]::after, .demo-secici button[aria-pressed="true"]::after { border-color: Highlight; }
-  .day .col, .rail a[aria-current="true"], .lbar i, .fbar i, .tm-cubuk > i { background: Highlight; }
+  .day .col, .rail a[aria-current="true"], .lbar i, .fbar i { background: Highlight; }
   .rail a, .lbar, .fbar, .tm-cubuk { background: GrayText; }
 }
 </style>
@@ -1696,7 +1650,7 @@ const GITHUB_URL = "https://github.com/doganau/token-panosu";
 const SAGLAYICILAR = [
   { id: "claude", ad: "Claude", apiAd: "Anthropic API", dosya: "~/.claude/projects" },
   { id: "chatgpt", ad: "ChatGPT", apiAd: "OpenAI API", dosya: "~/.codex/sessions + archived_sessions" },
-  { id: "gemini", ad: "Gemini", apiAd: "Google Gemini & Antigravity API", dosya: "~/.gemini/tmp + Antigravity (~/.gemini/antigravity*)" },
+  { id: "gemini", ad: "Gemini", apiAd: "Google Gemini API", dosya: "~/.gemini/tmp + ~/.gemini/antigravity" },
 ];
 let sonSaglayiciOzeti = null;
 // Adreste ofis yoksa: yönetici için Claude, ofis şifresiyle girmiş biri için girebildiği ilk ofis
@@ -1720,30 +1674,40 @@ function urlKur(yol, { h, sgl } = {}) {
   return q ? `${yol}?${q}` : yol;
 }
 const MODEL_AD_HARITASI = {
-  "agy-gemini": "Antigravity · Gemini",
-  "agy-gemini-4-carbon": "Antigravity · Gemini 4 Carbon",
-  "agy-gemini-4-argon": "Antigravity · Gemini 4 Argon",
-  "agy-gemini-3.8-flash": "Antigravity · Gemini 3.8 Flash",
-  "agy-gemini-3.5-flash": "Antigravity · Gemini 3.5 Flash",
-  "agy-gemini-3.1-pro": "Antigravity · Gemini 3.1 Pro",
-  "agy-gemini-3.1-flash-lite": "Antigravity · Gemini 3.1 Flash-Lite",
-  "agy-gemini-3-pro": "Antigravity · Gemini 3 Pro",
-  "agy-gemini-3-flash": "Antigravity · Gemini 3 Flash",
-  "agy-gemini-2.5-pro": "Antigravity · Gemini 2.5 Pro",
-  "agy-gemini-2.5-flash": "Antigravity · Gemini 2.5 Flash",
-  "agy-gemini-2.5-flash-lite": "Antigravity · Gemini 2.5 Flash-Lite",
-  "agy-claude-opus-5-5": "Antigravity · Claude Opus 5.5",
-  "agy-claude-sonnet-5-5": "Antigravity · Claude Sonnet 5.5",
-  "agy-claude-haiku-5-5": "Antigravity · Claude Haiku 5.5",
-  "agy-claude-opus-4-7": "Antigravity · Claude Opus 4.7",
-  "agy-claude-opus-4-6": "Antigravity · Claude Opus 4.6",
-  "agy-claude-sonnet-4-6": "Antigravity · Claude Sonnet 4.6",
-  "agy-claude-sonnet-4-5": "Antigravity · Claude Sonnet 4.5",
-  "agy-claude-haiku-4-5": "Antigravity · Claude Haiku 4.5",
+  "agy-gemini": "Gemini 4 Argon",
+  "agy-gemini-4-carbon": "Gemini 4 Carbon",
+  "agy-gemini-4-argon": "Gemini 4 Argon",
+  "agy-gemini-3.8-flash": "Gemini 3.8 Flash",
+  "agy-gemini-3.7-flash": "Gemini 3.7 Flash",
+  "agy-gemini-3.6-flash": "Gemini 3.6 Flash",
+  "agy-gemini-3.5-flash": "Gemini 3.5 Flash",
+  "agy-gemini-3.5-flash-lite": "Gemini 3.5 Flash-Lite",
+  "agy-gemini-3.1-pro": "Gemini 3.1 Pro",
+  "agy-gemini-3.1-flash-lite": "Gemini 3.1 Flash-Lite",
+  "agy-gemini-3-pro": "Gemini 3 Pro",
+  "agy-gemini-3-flash": "Gemini 3 Flash",
+  "agy-gemini-2.5-pro": "Gemini 2.5 Pro",
+  "agy-gemini-2.5-flash": "Gemini 2.5 Flash",
+  "agy-gemini-2.5-flash-lite": "Gemini 2.5 Flash-Lite",
+  "agy-claude-opus-5-5": "Claude Opus 5.5",
+  "agy-claude-sonnet-5-5": "Claude Sonnet 5.5",
+  "agy-claude-haiku-5-5": "Claude Haiku 5.5",
+  "agy-claude-opus-4-7": "Claude Opus 4.7",
+  "agy-claude-opus-4-6": "Claude Opus 4.6",
+  "agy-claude-sonnet-4-6": "Claude Sonnet 4.6",
+  "agy-claude-sonnet-4-5": "Claude Sonnet 4.5",
+  "agy-claude-haiku-4-5": "Claude Haiku 4.5",
+  "agy-gpt-oss-120b": "GPT-OSS 120B",
+  "agy-gpt-oss-20b": "GPT-OSS 20B",
+  "gpt-oss-120b": "GPT-OSS 120B",
+  "gpt-oss-20b": "GPT-OSS 20B",
   "gemini-4-carbon": "Gemini 4 Carbon",
   "gemini-4-argon": "Gemini 4 Argon",
   "gemini-3.8-flash": "Gemini 3.8 Flash",
+  "gemini-3.7-flash": "Gemini 3.7 Flash",
+  "gemini-3.6-flash": "Gemini 3.6 Flash",
   "gemini-3.5-flash": "Gemini 3.5 Flash",
+  "gemini-3.5-flash-lite": "Gemini 3.5 Flash-Lite",
   "gemini-3.1-pro": "Gemini 3.1 Pro",
   "gemini-3.1-flash-lite": "Gemini 3.1 Flash-Lite",
   "gemini-3-pro": "Gemini 3 Pro",
@@ -1779,26 +1743,28 @@ function modelKisaAd(m) {
   s = s.replace(/-preview(?:-[a-z0-9-]+)?$/, "");
   s = s.replace(/-(?:tiered|medium|high|low|thinking|minimal)$/, "");
   const ek = uzun ? " (>200k)" : "";
+  if (s === "gemini" || s === "agy-gemini") return "Gemini 4 Argon" + ek;
   if (Object.hasOwn(MODEL_AD_HARITASI, s)) return MODEL_AD_HARITASI[s] + ek;
   const agyClaude = s.match(/^agy-claude-(opus|sonnet|haiku|fable)-(\d+)(?:-(\d+))?$/);
-  if (agyClaude) return `Antigravity · Claude ${basHarfBuyut(agyClaude[1])} ${agyClaude[2]}${agyClaude[3] ? "." + agyClaude[3] : ""}${ek}`;
+  if (agyClaude) return `Claude ${basHarfBuyut(agyClaude[1])} ${agyClaude[2]}${agyClaude[3] ? "." + agyClaude[3] : ""}${ek}`;
   if (s.startsWith("agy-gemini-")) {
     const parca = s.slice(11).replace(/flash-lite/g, "Flash-Lite").split("-").map((x) => (x === "Flash-Lite" ? x : /^\d/.test(x) ? x : basHarfBuyut(x))).join(" ");
-    return `Antigravity · Gemini ${parca}${ek}`;
+    return `Gemini ${parca}${ek}`;
   }
+  const gptOss = s.match(/^(?:agy-)?gpt-oss-(\d+b)$/i);
+  if (gptOss) return `GPT-OSS ${gptOss[1].toUpperCase()}${ek}`;
   const duzClaude = s.match(/^claude-(opus|sonnet|haiku|fable)-(\d+)(?:-(\d+))?$/);
   if (duzClaude) return `${basHarfBuyut(duzClaude[1])} ${duzClaude[2]}${duzClaude[3] && duzClaude[3] !== "0" ? "." + duzClaude[3] : ""}${ek}`;
   if (s.startsWith("gemini-")) {
     const parca = s.slice(7).replace(/flash-lite/g, "Flash-Lite").split("-").map((x) => (x === "Flash-Lite" ? x : /^\d/.test(x) ? x : basHarfBuyut(x))).join(" ");
     return `Gemini ${parca}${ek}`;
   }
-  if (s.startsWith("agy-")) return "Antigravity · " + s.slice(4) + ek;
+  if (s.startsWith("agy-")) return s.slice(4).toUpperCase().startsWith("GPT-") ? s.slice(4).replace(/^gpt-/i, "GPT-") + ek : basHarfBuyut(s.slice(4)) + ek;
   if (s.startsWith("openai-")) return s.slice(7) + ek;
   return (uzun ? ham.slice(0, -5) : ham).replace(/^claude-/, "") + ek;
 }
 function agyClaudeHavuzuMu(m) {
-  const k = String(m || "").toLowerCase();
-  return k.startsWith("agy-claude-") || k.startsWith("agy-gpt-") || k.startsWith("agy-o");
+  return /^agy-(?:claude|gpt|o[134](?:$|-)|openai|codex)/i.test(String(m || "").trim());
 }
 const IZIN_SECENEKLERI = [
   { harf: "c", id: "claude", ad: "Claude" },
@@ -1835,7 +1801,7 @@ function cihazIkiliRozetHTML(c) {
   const calisan = paketNormalizeUI(c && c.calisan_paket);
   const ver = c && c.client_ver ? `v${c.client_ver}` : "";
   if (calisan && calisan === izin) {
-    return `<span class="pill pill-ok" data-ikili-rozet="${esc(c.id || "")}" title="Mühürlü gönderici ikilisi yalnızca seçili sağlayıcıların kodunu barındırır">${ICON.shield}<span>İkili: ${esc(ver || "v40")} · ${esc(paketEtiketUI(izin))}</span></span>`;
+    return `<span class="pill pill-ok" data-ikili-rozet="${esc(c.id || "")}" title="Mühürlü gönderici ikilisi yalnızca seçili sağlayıcıların kodunu barındırır">${ICON.shield}<span>İkili: ${esc(ver || "v41")} · ${esc(paketEtiketUI(izin))}</span></span>`;
   }
   if (calisan && calisan !== izin) {
     return `<span class="pill" data-ikili-rozet="${esc(c.id || "")}" title="Gönderici bir sonraki döngüde ikilisini otomatik değiştirecek"><span>İkili: ${esc(ver || "?")} · Güncelleniyor → ${esc(izin)}</span></span>`;
@@ -2188,22 +2154,22 @@ function demoVerisiUret(sgl, senaryo) {
     { id: "u-arda", ad: "Arda" },
   ];
   const cihazlar = [
-    { id: "d1000000000000000000000000000001", uye_id: "u-deniz", label: "Deniz · MacBook Pro", os: "Darwin", client_ver: 26, last_seen: simdiSn - 35, flags: [] },
-    { id: "d1000000000000000000000000000002", uye_id: "u-deniz", label: "Deniz · Mac Studio", os: "Darwin", client_ver: 26, last_seen: simdiSn - 420, flags: [] },
-    { id: "d2000000000000000000000000000002", uye_id: "u-ece", label: "Ece · ThinkPad Linux", os: "Linux", client_ver: 26, last_seen: simdiSn - 50, flags: [] },
-    { id: "d3000000000000000000000000000003", uye_id: "u-kaan", label: "Kaan · İş İstasyonu", os: "Windows", client_ver: 26, last_seen: simdiSn - 25, flags: [] },
-    { id: "d4000000000000000000000000000004", uye_id: "u-selin", label: "Selin · MacBook Air", os: "Darwin", client_ver: 26, last_seen: simdiSn - 320, flags: [] },
-    { id: "d5000000000000000000000000000005", uye_id: "u-arda", label: "Arda · Linux Masaüstü", os: "Linux", client_ver: 26, last_seen: simdiSn - 610, flags: [] },
+    { id: "d1000000000000000000000000000001", uye_id: "u-deniz", label: "Deniz · MacBook Pro", os: "Darwin", client_ver: 41, last_seen: simdiSn - 35, flags: [] },
+    { id: "d1000000000000000000000000000002", uye_id: "u-deniz", label: "Deniz · Mac Studio", os: "Darwin", client_ver: 41, last_seen: simdiSn - 420, flags: [] },
+    { id: "d2000000000000000000000000000002", uye_id: "u-ece", label: "Ece · ThinkPad Linux", os: "Linux", client_ver: 41, last_seen: simdiSn - 50, flags: [] },
+    { id: "d3000000000000000000000000000003", uye_id: "u-kaan", label: "Kaan · İş İstasyonu", os: "Windows", client_ver: 41, last_seen: simdiSn - 25, flags: [] },
+    { id: "d4000000000000000000000000000004", uye_id: "u-selin", label: "Selin · MacBook Air", os: "Darwin", client_ver: 41, last_seen: simdiSn - 320, flags: [] },
+    { id: "d5000000000000000000000000000005", uye_id: "u-arda", label: "Arda · Linux Masaüstü", os: "Linux", client_ver: 41, last_seen: simdiSn - 610, flags: [] },
   ];
   const asimMi = senaryo === "asim";
   const geceMi = senaryo === "gece";
   const modelSet = sgl === "claude"
-    ? ["claude-sonnet-4-6", "claude-opus-4-6", "claude-haiku-4-5"]
+    ? ["claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-5-5"]
     : sgl === "chatgpt"
       ? ["openai-gpt-5.3-codex", "openai-gpt-5.4", "openai-o3"]
-      : ["agy-claude-opus-4-6-thinking", "agy-gemini-3.1-pro-high", "gemini-2.5-pro"];
+      : ["agy-gemini-4-carbon", "agy-gemini-4-argon", "agy-gemini-3.8-flash"];
   const carpanlar = asimMi ? [1.0, 0.35, 0.9, 2.85, 0.72, 0.58] : [1.35, 0.48, 1.18, 1.05, 0.86, 0.68];
-  const bazUsd = sgl === "claude" ? 38 : sgl === "chatgpt" ? 29 : 34;
+  const bazUsd = sgl === "claude" ? 38 : sgl === "chatgpt" ? 29 : 32;
   const usage = [];
   cihazlar.forEach((dv, idx) => {
     const u = Math.round(bazUsd * carpanlar[idx] * 100) / 100;
@@ -2220,6 +2186,12 @@ function demoVerisiUret(sgl, senaryo) {
       usd: u,
     });
   });
+  if (sgl === "gemini") {
+    usage.push(
+      { device_id: cihazlar[0].id, d: 1, model: "agy-claude-opus-5-5", input: 42000, output: 18000, cw5m: 0, cw1h: 0, cr: 310000, usd: 14.8 },
+      { device_id: cihazlar[3].id, d: 2, model: "agy-claude-sonnet-5-5", input: 58000, output: 24000, cw5m: 0, cw1h: 0, cr: 420000, usd: asimMi ? 28.4 : 11.6 }
+    );
+  }
   // Kimlerin ekranı açık (son 15 dk): normalde 3 kişi, aşımda yalnızca Kaan + Deniz (diğerleri müdahale edebilsin!), gecede yalnızca Deniz
   const aktifCihazlar = geceMi
     ? [cihazlar[0].id]
@@ -2227,12 +2199,13 @@ function demoVerisiUret(sgl, senaryo) {
       ? [cihazlar[3].id, cihazlar[0].id]
       : [cihazlar[0].id, cihazlar[2].id, cihazlar[3].id];
   const recent5 = aktifCihazlar.map((id) => ({ device_id: id, bucket: simdiSn - 60, tok: 18400, usd: 0.42 }));
-  const limitYuzde = asimMi ? 71.2 : sgl === "claude" ? 54.6 : sgl === "chatgpt" ? 48.5 : 61.8;
+  const limitYuzde = asimMi ? 71.2 : sgl === "claude" ? 54.6 : sgl === "chatgpt" ? 48.5 : 58.4;
+  const gemini3pYuzde = asimMi ? 66.5 : 38.2;
   const ham = sgl === "claude"
     ? { "seven_day.used_percentage": limitYuzde, "five_hour.used_percentage": asimMi ? 82 : 38 }
     : sgl === "chatgpt"
       ? { "seven_day.used_percentage": limitYuzde, "five_hour.used_percentage": asimMi ? 76 : 31, "five_hour.resets_at": simdiSn + 9400, "seven_day.resets_at": haftaBas + 7 * 86400 }
-      : { "agy_claude.used_percentage": limitYuzde, "agy_claude.resets_at": haftaBas + 7 * 86400, "agy_gemini.used_percentage": asimMi ? 64.5 : 39.2, "agy_gemini.resets_at": simdiSn + 14400 };
+      : { "seven_day.used_percentage": limitYuzde, "seven_day.resets_at": haftaBas + 7 * 86400, "agy_gemini.used_percentage": limitYuzde, "agy_gemini.resets_at": haftaBas + 7 * 86400, "agy_claude.used_percentage": gemini3pYuzde, "agy_claude.resets_at": haftaBas + 5 * 86400 };
   return {
     saglayici: sgl,
     now: simdiSn,
@@ -2240,7 +2213,7 @@ function demoVerisiUret(sgl, senaryo) {
     end: haftaBas + 7 * 86400,
     current: haftaBas,
     firstData: haftaBas - 3 * 604800,
-    latest: 26,
+    latest: 41,
     uyeler,
     devices: cihazlar,
     usage,
@@ -2250,6 +2223,8 @@ function demoVerisiUret(sgl, senaryo) {
     haftaSifirlama: { [sgl]: { kaynak: "otomatik_disk", sonrakiReset: haftaBas + 7 * 86400 } },
     limit: {
       pct: limitYuzde,
+      cpct: sgl === "gemini" ? gemini3pYuzde : null,
+      cr: sgl === "gemini" ? haftaBas + 5 * 86400 : 0,
       h: sgl !== "gemini" ? (asimMi ? 79 : 34) : null,
       hr: simdiSn + 10200,
       set_at: simdiSn - 45,
@@ -2286,13 +2261,6 @@ async function pageLanding() {
   const authed = await isAuthed();
   shell("anasayfa", `
     <section class="landing-hero" aria-labelledby="h-vitrin" style="margin-top:0">
-      <div class="hero-rozetler">
-        <span class="pill pill-accent">${ICON.shield}<span>Açık Kaynak · MIT Lisansı</span></span>
-        <span class="pill pill-ok"><span>Cloudflare Workers + D1 · $0/ay</span></span>
-        <span class="pill">${ICON.claude}<span>Claude Code</span></span>
-        <span class="pill">${ICON.chatgpt}<span>Codex CLI</span></span>
-        <span class="pill">${ICON.gemini}<span>Gemini CLI &amp; Antigravity</span></span>
-      </div>
       <h1 id="h-vitrin">Ortak yapay zekâ kodlama kotalarını canlı bir izometrik ofiste yönetin.</h1>
       <p class="lead">Ekibinizin <b>Claude Code</b>, <b>OpenAI Codex CLI</b>, <b>Google Gemini CLI</b> ve <b>Google Antigravity IDE</b> kullanımını yerel diskten <b>%100 salt-okunur ve sıfır dış ağ isteğiyle</b> takip edin. Ortak abonelik limitlerini adil bölüştürün, farklı kişisel hesapları otomatik ayırın ve kendi Cloudflare hesabınızda 3 dakikada ücretsiz barındırın.</p>
       <div class="hero-aksiyonlar">
@@ -2395,7 +2363,7 @@ async function pageLanding() {
 
         <article class="eko-kart">
           <div class="eko-ust">
-            <div class="eko-baslik"><div class="eko-ikon agy">${ICON.agy}</div><div><h3>Google Antigravity IDE &amp; CLI</h3><p class="eko-alt">Çift havuzlu model kredisi · Brain Transcript &amp; State DB uyumu</p></div></div>
+            <div class="eko-baslik"><div class="eko-ikon agy">${ICON.agy}</div><div><h3>Google Antigravity IDE &amp; CLI</h3><p class="eko-alt">İki bağımsız kota havuzu · Brain Transcript &amp; State DB uyumu</p></div></div>
             <span class="pill pill-accent">Gemini Ofisi</span>
           </div>
           <div class="eko-yollar">
@@ -2403,9 +2371,9 @@ async function pageLanding() {
             <code class="eko-yol">.../Antigravity/User/globalStorage/state.vscdb</code>
           </div>
           <ul class="eko-maddeler">
-            <li><b>Çift kota havuzu (Claude + Gemini):</b> Antigravity'nin <code>agy_claude</code> (Opus/Sonnet) ve <code>agy_gemini</code> (Gemini Pro/Flash) kredi havuzlarını ve ayrı sıfırlama saatlerini birlikte izler.</li>
-            <li><b>Birleşik ajan takibi:</b> Alt ajan (subagent) <code>brain</code> kayıtlarını ve şifreli <code>.pb</code> oturum değişimlerini tekilleştirerek okur.</li>
-            <li><b>Ekosistem kırılımı:</b> Gemini ofisi altında <code>Antigravity · ...</code> ve <code>Gemini CLI</code> harcamalarını yan yana karşılaştırmalı gösterir.</li>
+            <li><b>İki bağımsız haftalık kota:</b> Ana odak olan <b>Gemini modelleri</b> haftalık kotası ile <b>Claude &amp; GPT modelleri</b> özel kotasını ayrı sıfırlama saatleri ve ayrı çubuklarla birbirine karıştırmadan izler.</li>
+            <li><b>Gerçek API modelleri ve fiyatları:</b> Kayıtlardaki gerçek model kimliklerini (<code>gemini-4-carbon</code>, <code>gemini-4-argon</code>, <code>gemini-3.8-flash</code>, <code>claude-opus-5-5</code>, <code>gpt-oss-120b</code>) resmi USD liste tarifeleriyle hesaplar.</li>
+            <li><b>Alt ajan ve önbellek tekilleştirme:</b> Ana oturum ve alt ajan (subagent) <code>brain</code> kayıtlarını mesaj bazında tekilleştirir; önbellek okumalarını indirimli tarifeden fiyatlandırır.</li>
           </ul>
         </article>
       </div>
@@ -2478,16 +2446,40 @@ async function pageLanding() {
     const asanlar = payAsanlar(d, groups);
     const payMap = grupPaylari(groups, d.ayar);
     const pct = d.limit.pct;
+    const cpct = Number.isFinite(d.limit.cpct) ? d.limit.cpct : null;
+    const devGrp = new Map();
+    for (const g of groups) { g.agyGeminiUsd = 0; g.agyClaudeUsd = 0; for (const x of g.devs) devGrp.set(x.id, g); }
+    if (d.saglayici === "gemini") {
+      for (const r of d.usage) {
+        const g = devGrp.get(r.device_id);
+        if (!g) continue;
+        if (agyClaudeHavuzuMu(r.model)) g.agyClaudeUsd += r.usd;
+        else g.agyGeminiUsd += r.usd;
+      }
+    }
+    const totalGem = groups.reduce((a, g) => a + g.agyGeminiUsd, 0);
+    const total3p = groups.reduce((a, g) => a + g.agyClaudeUsd, 0);
     const cachePayda = total.input + total.cw + total.cr;
     const cacheOran = cachePayda > 0 ? Math.round((total.cr / cachePayda) * 1000) / 10 : 0;
     const uyeSatirlar = [...groups].sort((a, b) => b.usd - a.usd).map((g) => {
       const hak = payMap.get(g.id) || 20;
-      const used = total.usd > 0 ? pct * (g.usd / total.usd) : 0;
+      const used = d.saglayici === "gemini"
+        ? (totalGem > 0 ? pct * (g.agyGeminiUsd / totalGem) : 0)
+        : (total.usd > 0 ? pct * (g.usd / total.usd) : 0);
       const bar = Math.min(100, (used / hak) * 100);
       const over = used >= hak - 0.005;
+      let ikincil = "";
+      if (d.saglayici === "gemini" && cpct !== null && total3p > 0) {
+        const cUsed = cpct * (g.agyClaudeUsd / total3p);
+        const cBar = Math.min(100, (cUsed / hak) * 100);
+        const cOver = cUsed >= hak - 0.005;
+        ikincil = `<span class="fbar" role="img" aria-label="${esc(g.ad)} Claude ve GPT özel kotası"><i style="width:${cBar.toFixed(1)}%" class="agy-3p${cOver ? " over" : ""}"></i></span>
+          <span class="flab" aria-hidden="true">Claude &amp; GPT %${pctFmt(cUsed)} / %${pctFmt(hak)} · ${money(g.agyClaudeUsd)}</span>`;
+      }
+      const anaTutar = d.saglayici === "gemini" ? g.agyGeminiUsd : g.usd;
       return `<li class="lrow"><span class="ln">${esc(g.ad)}${g.devs.length > 1 ? `<small class="ldv">${g.devs.length} bilgisayar birleşik</small>` : ""}</span>
-        <span class="lmid"><span class="lbar" role="img" aria-label="${esc(g.ad)} kota kullanımı"><i style="width:${bar.toFixed(1)}%" class="${over ? "over" : ""}"></i></span></span>
-        <span class="lv"><b class="${over ? "bad" : ""}">%${pctFmt(used)}</b><small>hakkı %${pctFmt(hak)} · ${money(g.usd)}</small></span></li>`;
+        <span class="lmid"><span class="lbar" role="img" aria-label="${esc(g.ad)} kota kullanımı"><i style="width:${bar.toFixed(1)}%" class="${over ? "over" : ""}"></i></span>${ikincil}</span>
+        <span class="lv"><b class="${over ? "bad" : ""}">%${pctFmt(used)}</b><small>hakkı %${pctFmt(hak)} · ${money(anaTutar)}</small></span></li>`;
     }).join("");
 
     kutu.innerHTML = `
@@ -2499,7 +2491,7 @@ async function pageLanding() {
         <div class="kpi">
           <div class="kpi-etiket"><span>Örnek haftalık API karşılığı</span><span class="pill pill-accent">${esc(sb.apiAd)}</span></div>
           <div class="kpi-deger">${money(total.usd)}</div>
-          <div class="kpi-alt">${byModel.size} aktif model · ${groups.length} masa (${d.devices.length} cihaz)</div>
+          <div class="kpi-alt">${d.saglayici === "gemini" ? `Gemini ${money(totalGem)} · Claude &amp; GPT ${money(total3p)}` : `${byModel.size} aktif model · ${groups.length} masa (${d.devices.length} cihaz)`}</div>
         </div>
         <div class="kpi">
           <div class="kpi-etiket"><span>Önbellek (Cache) isabeti</span><span class="pill pill-ok">%${pctFmt(cacheOran)}</span></div>
@@ -2507,9 +2499,9 @@ async function pageLanding() {
           <div class="kpi-alt">Toplam ${short(total.tok)} token içinde bağlam okuması</div>
         </div>
         <div class="kpi">
-          <div class="kpi-etiket"><span>Ortak abonelik kotası</span><span class="pill ${asanlar.size ? "pill-bad" : "pill-ok"}">${asanlar.size ? `${asanlar.size} aşım var` : "Dengeli"}</span></div>
+          <div class="kpi-etiket"><span>${d.saglayici === "gemini" ? "Gemini modelleri kotası" : "Ortak abonelik kotası"}</span><span class="pill ${asanlar.size ? "pill-bad" : "pill-ok"}">${asanlar.size ? `${asanlar.size} aşım var` : "Dengeli"}</span></div>
           <div class="kpi-deger">%${pctFmt(pct)}</div>
-          <div class="kpi-alt">${d.saglayici === "gemini" ? "Antigravity Claude %61,8 · Gemini %39,2" : `5 saatlik pencere: %${pctFmt(d.limit.h || 0)}`}</div>
+          <div class="kpi-alt">${d.saglayici === "gemini" && cpct !== null ? `Claude &amp; GPT özel kotası: %${pctFmt(cpct)}` : `5 saatlik pencere: %${pctFmt(d.limit.h || 0)}`}</div>
         </div>
         <div class="kpi">
           <div class="kpi-etiket"><span>Ortak hesap kilidi</span><span class="pill pill-ok">Kilitli</span></div>
@@ -2517,7 +2509,6 @@ async function pageLanding() {
           <div class="kpi-alt">Yalnızca doğrulanan ekip hesabı kotaya dahil</div>
         </div>
       </div>
-      ${saglayiciTelemetriKarti(d, total, byModel)}
       ${officeScene(d, groups, perDev, liveSet, maxUsd, asanlar, { demo: true })}
       <section class="card limit-card" aria-labelledby="h-demo-lim">
         <div class="card-head"><h2 id="h-demo-lim">${ICON[sb.id]}<span>${esc(ofisTema(d.saglayici).ad)} — Kişi Başı Adil Kota Dağılımı Önizlemesi</span></h2><span class="pill">${asanlar.size ? "Aşım müdahalesi aktif" : "Eşit %20 pay"}</span></div>
@@ -2572,7 +2563,6 @@ async function pagePairInstall() {
 
   shell("kurulum", `
     <section aria-labelledby="h-kur" style="margin-top:0">
-      <div class="pill pill-accent" style="margin-bottom:10px">${ICON.shield}<span>Claude · Codex CLI · Gemini CLI · Antigravity · İmzalı Gönderici</span></div>
       <h1 id="h-kur" style="font-size:clamp(26px,3.4vw,38px)">Bilgisayarını bu panoya bağla</h1>
       <p class="lead" style="margin-bottom:20px">Tek kurulumla bilgisayarındaki <b>Claude Code</b>, <b>ChatGPT (Codex CLI)</b>, <b>Google Gemini CLI</b> ve <b>Google Antigravity IDE</b> oturum istatistiklerini yerel dosyalardan pasif olarak okur ve her 5 dakikada bir imzalı olarak <code>${esc(ORIGIN)}</code> sunucusuna aktarır.</p>
       <div id="os-sekmeler">
@@ -2777,8 +2767,8 @@ function kullaniciFormAlanlari(onek, k, uyeler) {
         ${uyeler.map((u) => `<option value="${esc(u.id)}"${k && k.uye_id === u.id ? " selected" : ""}>${esc(u.ad)}</option>`).join("")}
         <option value="yeni">+ Kendi adıyla yeni masa aç</option></select>
         <p class="ayar-ipucu">Geçmiş kullanım verileri masaya bağlıdır; mevcut bir kişiyi seçersen verileri bu hesaba geçer.</p></div>
-      <div class="ayar-alan"><label for="${onek}-ka">Kullanıcı adı</label><input id="${onek}-ka" name="kullanici_adi" type="text" autocorrect="off" autocapitalize="none" spellcheck="false" maxlength="64" placeholder="Örn. alper" required value="${esc((k && k.kullanici_adi) || "")}"><p class="ayar-ipucu">Girişte kullanılır (küçük harf, boşluksuz).</p></div>
-      <div class="ayar-alan"><label for="${onek}-ad">Görünen ad</label><input id="${onek}-ad" name="ad" type="text" maxlength="60" placeholder="Örn. Alper" required value="${esc((k && k.ad) || "")}"></div>
+      <div class="ayar-alan"><label for="${onek}-ka">Kullanıcı adı</label><input id="${onek}-ka" name="kullanici_adi" type="text" autocorrect="off" autocapitalize="none" spellcheck="false" maxlength="64" placeholder="Örn. deniz" required value="${esc((k && k.kullanici_adi) || "")}"><p class="ayar-ipucu">Girişte kullanılır (küçük harf, boşluksuz).</p></div>
+      <div class="ayar-alan"><label for="${onek}-ad">Görünen ad</label><input id="${onek}-ad" name="ad" type="text" maxlength="60" placeholder="Örn. Deniz" required value="${esc((k && k.ad) || "")}"></div>
       <div class="ayar-alan"><label for="${onek}-rol">Rol</label><select id="${onek}-rol" name="rol">
         <option value="uye"${!k || k.rol !== "super" ? " selected" : ""}>Üye</option>
         <option value="super"${k && k.rol === "super" ? " selected" : ""}>Süper yönetici (her şey)</option></select></div>
@@ -3248,203 +3238,190 @@ const kisaAd = (ad) => { const t = String(ad).trim(); return t.length > 13 ? t.s
 const koyu = (hex, k = 0.76) => { const n = parseInt(hex.slice(1), 16); const c = (s) => Math.round(((n >> s) & 255) * k); return `rgb(${c(16)},${c(8)},${c(0)})`; };
 const sec = (l) => l[Math.floor(Math.random() * l.length)];
 
-// Geniş gerçekçi ofis ve yazılımcı replikleri
+// Kısa, esprili ve sahneyi kapatmayan yazılımcı replikleri
 const SOZ = {
   otur: [
-    "Claude'a tek satır düzelt dedim, 12 dosyayı baştan yazdı yine…",
-    "Şu context dolmadan son bir refactor daha sıkıştırayım.",
-    "Lokalimde çalışıyordu yemin ederim, prod'da niye patladı bu?",
-    "Cache okuma yüksek geldi neyse ki, yoksa haftalık pay uçmuştu.",
-    "Bir test daha yazıp PR'ı açıyorum, kimse dokunmasın.",
-    "Opus'a sormaya kıyamadım, Sonnet halleder bence bu işi.",
-    "Git blame yaptım, 6 ay önceki ben yazmışım… sessizce kapattım.",
-    "Prompt'u kibar yazınca sanki daha özenli kod üretiyor.",
-    "Type hatasını çözdüm derken 4 tane yeni uyarı peydah oldu.",
-    "Şu migration'ı dikkatli çalıştıralım da tabloyu uçurmayalım.",
-    "Tamam bu sefer gerçekten son commit, söz veriyorum.",
-    "Loglara bakıyorum ama loglar da bana bakıyor şu an.",
-    "Subagent açmayayım şimdi, haftalık limit payım erimesin.",
-    "Beş dakikalık iş dedik, iki saattir aynı fonksiyonun içindeyim.",
-    "Edge case'in de edge case'i çıktı, böyle veri mi gelir ya?",
-    "Build yeşil yandı! Kimse nefes almasın, deploy'a basıyorum.",
-    "Merge conflict çıktı, kim dokundu bu dosyaya az önce?",
-    "Regex'i yazdım çalışıyor ama yarın baksam ben bile anlamam.",
-    "Şu API yanıt süresini 80 ms'ye düşürdük mü tamamdır.",
-    "Neden çalıştığını bilmiyorum ama dokunursam bozulacak kesin.",
-    "Testlerin hepsi geçti, kesin bir yeri eksik test ettik…",
-    "Bir prompt'ta hem backend hem arayüz çıktı, temiz iş oldu.",
-    "Bellek sızıntısını sonunda yakaladım, kapanmayan dinleyici varmış.",
-    "Şu değişkenin adını düzgün koyayım da sonra küfür yemeyelim.",
+    "Tek satır dedim, 12 dosya yazdı…",
+    "Son bir refactor sıkıştırayım.",
+    "Lokalimde çalışıyordu valla!",
+    "Cache yüksek, kotamız güvende.",
+    "Son testi yazıp PR açıyorum.",
+    "Bunu Sonnet rahat halleder.",
+    "Git blame: 6 ay önceki ben…",
+    "Kibar prompt'a temiz kod geldi.",
+    "1 hata çözdüm, 3 uyarı çıktı.",
+    "Migration'ı dikkatli koşturayım.",
+    "Bu sefer gerçekten son commit!",
+    "Loglarla bakışıyoruz şu an…",
+    "Kota erimesin, kısa tutayım.",
+    "5 dakikalık iş 2 saat sürdü.",
+    "Yine uç durum çıktı veride…",
+    "Build yeşil! Deploy'a basıyorum.",
+    "Merge conflict çıktı yine!",
+    "Regex çalıştı, dokunmayalım.",
+    "API yanıtı 80 ms'ye indi!",
+    "Çalışıyorsa sakın dokunma.",
+    "Tüm testler tekte geçti!",
+    "Tek prompt'ta temiz iş çıktı.",
+    "Bellek sızıntısını yakaladım!",
+    "Değişken adını düzgün koyayım.",
   ],
   kahve: [
-    "Üçüncü kahvedeyim, gözüm yeni yeni açılıyor valla.",
-    "Taze filtre kahve demledim, soğumadan alın gençler!",
-    "Espresso makinesinin basıncı bugün tam kıvamında.",
-    "Yanına yarım simit aldım mı değmeyin keyfime.",
-    "Makinenin su haznesi yine bitmiş, ben dolduruyorum bari.",
-    "Kafeinsiz kod yazamıyorum, beynim doğrudan syntax hatası veriyor.",
-    "Şekersiz içmeye alıştım artık, böylesi daha iyi.",
-    "Kokusu bütün ofisi sardı, taze çekirdek bambaşka oluyor.",
+    "Üçüncü kahve, gözüm yeni açıldı.",
+    "Taze filtre kahve demledim ☕",
+    "Espresso bugün tam kıvamında.",
+    "Kahve + yarım simit, süper ikili.",
+    "Su haznesini dolduruyorum.",
+    "Kafeinsiz kod syntax hatası verir.",
+    "Şekersiz kahveye iyice alıştım.",
+    "Taze çekirdek kokusu sardı ofisi.",
   ],
   sebil: [
-    "Sabahtan beri sadece kahve içmişim, biraz da su içeyim.",
-    "Soğuk suyla ılık suyu karıştırınca tam içmelik oluyor.",
-    "Damacana da azalmış, bitmeden yenisini söyleyelim.",
-    "Bir bardak su alıp zihnimi toparlayayım biraz.",
+    "Biraz da su içeyim bari.",
+    "Ilık-soğuk karışımı tam kıvam.",
+    "Damacana azalmış, yenileyelim.",
+    "Bir bardak su zihni açar.",
   ],
   tahta: [
-    "Şu kartı 'Devam Ediyor'dan 'Bitti'ye çekmenin keyfi bambaşka!",
-    "Mimaride şuraya ufak bir önbellek koysak yarı yarıya hızlanır.",
-    "Bu sprint'e kim bu kadar madde ekledi, biraz gerçekçi olalım.",
-    "Akış şeması tahtada çok temiz duruyor da kodda öyle değil işte.",
-    "Darboğaz veritabanında değilmiş, sorguyu döngü içinde atmışız…",
-    "Şu iki servisi ayırsak dağıtım derdimiz yarıya iner aslında.",
-    "Yapışkan notların yarısı yarına kaldı, klasik çarşamba sendromu.",
+    "Kartı 'Bitti'ye çekmek ne güzel!",
+    "Ufak bir cache yarı yarıya hızlatır.",
+    "Bu sprint biraz kabarık olmuş.",
+    "Tahtada temiz, kodda karışık…",
+    "Sorguyu döngü içinde atmışız…",
+    "İki servisi ayırsak rahatlarız.",
+    "Notların yarısı yarına kaldı.",
   ],
   kanepe: [
-    "Beş dakika gözlerimi dinlendireyim, ekrana bakmaktan pikselleri sayıyorum.",
-    "Burası ofisin en rahat köşesi, insanın kalkası gelmiyor hiç.",
-    "Boynum tutulmuş masada, koltuk ilaç gibi geldi valla.",
-    "Şu koltukta on dakika uzansam bütün mimariyi kafamda çözerim.",
-    "Kahvemi alıp biraz arkama yaslanayım, zihnim açılsın.",
-    "Bazen klavyeden uzaklaşınca çözüm kendiliğinden aklına geliyor.",
+    "5 dakika gözlerimi dinlendireyim.",
+    "Ofisin en rahat köşesi burası.",
+    "Boynum tutulmuş, koltuk iyi geldi.",
+    "Mimariyi kafamda toparlıyorum.",
+    "Kahveyle azıcık arkama yaslanayım.",
+    "Klavyeden kalkınca çözüm geliyor.",
   ],
   raf: [
-    "Sunucunun bütün ışıkları yeşil yanıyor, şimdilik her şey yolunda.",
-    "Clean Code kitabını kim ters koydu rafa yine?",
-    "Sunucu dolabının önü sıcacık, kedi boşuna buraya yatmıyor.",
-    "Şu sarı plastik ördeğe derdimi anlatsam bug'ı hemen bulurum.",
-    "Yedekleme ışığı yanıp sönüyor, cron zamanında çalışmış güzel.",
+    "Sunucu ışıkları yemyeşil.",
+    "Clean Code'u kim ters koydu?",
+    "Sunucu önü sıcacık, kedi haklı.",
+    "Plastik ördeğe anlatsam çözerim.",
+    "Yedekleme cron'u tıkır tıkır.",
   ],
   gez: [
-    "Biraz bacaklarım açılsın, sabahtan beri sandalyeye yapıştım.",
-    "Klima bir donduruyor bir pişiriyor, ortası yok mu bunun?",
-    "Panoya baktım da bu hafta ekipçe bayağı yoğun çalışmışız.",
-    "Dışarıya bakınca insanın havası değişiyor, iyi ki pencere geniş.",
-    "Fable yüzdesini en son kim güncelledi, güncel mi acaba?",
-    "Ofis bugün ne güzel, herkes kendi havasında takılıyor.",
-    "Bir tur atayım da kafamdaki şu döngü karmaşası dağılsın.",
-    "Kulaklığı çıkarınca ofisin sesini özlediğimi fark ettim.",
-    "Cuma gününe kadar limiti dengeli götürsek süper olacak.",
+    "Biraz bacaklarım açılsın.",
+    "Klima bir donduruyor bir yakıyor.",
+    "Bu hafta ekipçe yoğun çalıştık.",
+    "Pencereden bakınca ferahlıyor insan.",
+    "Kota oranları dengeli gidiyor.",
+    "Ofiste bugün tatlı bir huzur var.",
+    "Bir tur atayım, zihnim dağılsın.",
+    "Cuma'ya kadar kotayı koruyalım.",
   ],
   kedi: [
-    "Gel bakalım Tekir, yine mi acıktın sen?",
-    "Sunucunun üstüne yatma sakın, tüylerin fana kaçacak!",
-    "Ofisin en huzurlu çalışanı şu kedi yemin ederim, sıfır stres.",
-    "Baksana nasıl mırlıyor, bütün yorgunluğumu aldı.",
+    "Tekir, yine mi acıktın sen?",
+    "Sunucuya yatma, tüy kaçacak!",
+    "Ofisin en stressiz üyesi Tekir.",
+    "Nasıl da güzel mırlıyor 🐾",
   ],
   tikla: [
-    "Efendim? Bir şey mi lazımdı, hemen bakıyorum!",
-    "Bana tıkladın ama prod'a deploy'u ben atmadım valla!",
-    "Selam! Limit payımı kontrol ediyorsan masumum ben.",
-    "Mola verdim sadece, birazdan masama geçeceğim söz!",
+    "Efendim? Hemen bakıyorum!",
+    "Prod'a deploy'u ben atmadım!",
+    "Kota payımda masumum valla!",
+    "Kısa mola, birazdan masadayım!",
   ],
   dov: [
-    "Haftalık payını bitirdin hâlâ prompt atıyorsun, bırak o klavyeyi!",
-    "Biz hafta sonuna kadar taş mı kemireceğiz, kapat şu terminali!",
-    "Bildirim üstüne bildirim gidiyor hâlâ durmuyorsun ya!",
-    "Ortak kota bu ortak! Kendi hakkını yedin bizimkine girdin!",
-    "Çek ellerini klavyeden, Fable limitini de mi sıfırlayacaksın?!",
-    "Cumaya daha kaç gün var haberin var mı senin?!",
-    "Yeter artık! Subagent üstüne subagent açmışsın görüyoruz panodan!",
-    "Fişini çekeceğim şimdi bilgisayarının, dur artık!",
+    "Payını bitirdin, bırak klavyeyi!",
+    "Kapat şu terminali artık!",
+    "Ortak kota bu, hakkımıza girdin!",
+    "Çek ellerini klavyeden!",
+    "Cumaya kaç gün var haberin var mı?!",
+    "Subagent üstüne subagent açmışsın!",
+    "Fişini çekeceğim şimdi!",
   ],
   dayak: [
-    "Durun vurmayın! Vallahi prod'daki acil hatayı kapatıyorum!",
-    "Tamam tamam son bir commit kaldı, yarım mı bıraksaydım?!",
-    "Claude kendi kendine uzun düşündü, benim suçum değil ki!",
-    "Ay! Tamam kapatıyorum terminali, bir dakika müsaade edin!",
-    "Testler kırık kaldı, sadece şunu düzeltip çıkacağım söz!",
-    "Valla Haiku'ya geçtim, neredeyse hiç yemiyor kızmayın!",
-    "Acil müşteri işi bu, keyfimden mi yazıyorum sanki?!",
+    "Durun! Acil prod hatası bu!",
+    "Son bir commit kaldı valla!",
+    "Model uzun düşündü, suçum yok!",
+    "Tamam kapatıyorum terminali!",
+    "Şu kırık testi düzeltip çıkacağım!",
+    "Flash modele geçtim kızmayın!",
+    "Acil müşteri işi, söz bitiyor!",
   ],
   uyku: [
-    "Zzz… prod'a force push atmayın… zzz…",
-    "Mmm… beş dakika daha, migration sabaha kalsın…",
-    "Zzz… testlerin hepsi yeşil… mmm…",
-    "Cache'ten okuyor zaten… uyu devam… zzz…",
-    "Sabah ilk iş o PR'a bakacağım söz… zzz…",
-    "Zzz… o satıra ben dokunmadım… git blame yalan söylüyor…",
+    "Zzz… force push atmayın…",
+    "Mmm… migration sabaha kalsın…",
+    "Zzz… testlerin hepsi yeşil…",
+    "Cache'ten okuyor… zzz…",
+    "Sabah ilk iş o PR'dayım… zzz…",
   ],
   uykuTikla: [
-    "Hıı? Gece gece deploy mu var… uyuyorum ben…",
-    "Şşşt ışığı kıs, sabah bakarız o hataya… zzz…",
-    "Benim ekran kapalı valla, mesai bitti… iyi geceler!",
-    "Beş dakika daha ya, tam rüyamda bug'ı çözüyordum…",
+    "Hıı? Gece deploy mu var…",
+    "Şşşt, sabah bakarız… zzz…",
+    "Ekranım kapalı, iyi geceler!",
+    "Tam rüyamda bug'ı çözüyordum…",
   ],
 };
 
-// İki kişilik karşılıklı çok adımlı gerçekçi sohbet senaryoları (sırayla A -> B -> A)
+// İki kişilik karşılıklı kısa sohbet senaryoları (sırayla A -> B -> A)
 const DIYALOG = [
   [
-    "Panoya baktın mı? Haftalık limit bayağı hızlı eriyor bu hafta.",
-    "Vallahi ben dikkat ediyorum, gereksiz dosyaları context'e sokmuyorum.",
-    "İyi yapıyorsun, limiti aşanı ofisçe köşeye sıkıştırıyoruz biliyorsun!",
+    "Haftalık kota hızlı eriyor sanki.",
+    "Context'i hep kısa tutuyorum ben.",
+    "Süper, aşanı köşeye sıkıştırıyoruz!",
   ],
   [
-    "Az önce Claude tek seferde hatasız migration yazdı, gözlerim yaşardı.",
-    "Şaka yapıyorsun! Nasıl bir prompt yazdın, sırrını bize de söyle.",
-    "Önce şemayı okuttum, hiç acele ettirmedim, pamuk gibi çıkardı.",
+    "Migration tek seferde hatasız çıktı!",
+    "Şaka! Nasıl bir prompt yazdın?",
+    "Önce şemayı okuttum, tertemiz oldu.",
   ],
   [
-    "Senin ekran sönmüş, mola mı verdin yoksa işin mi bitti?",
-    "İki saattir aralıksız debug yapıyordum, beynim eridi resmen.",
-    "En iyisini yapmışsın, bir kahve al dönüşte beş dakikada çözersin.",
+    "Ekranın sönmüş, mola mı verdin?",
+    "İki saattir aralıksız debug yaptım.",
+    "Bir kahve al, dönüşte çözersin.",
   ],
   [
-    "Dünkü garip prod hatasının sebebi neymiş, bulabildin mi?",
-    "Saat dilimi farkıymış… UTC yerine yerel saati karşılaştırmışız.",
-    "Klasik! Tarih ve saat işleri yazılımcının bitmeyen sınavı zaten.",
+    "Dünkü prod hatası nedenmiş?",
+    "Klasik UTC - yerel saat farkıymış.",
+    "Tarih-saat yazılımcının sınavı valla.",
   ],
   [
-    "PR açtım ama 380 satır oldu, müsait olunca bir göz atar mısın?",
-    "380 satır mı?! Kahvemi tazeleyip geleyim, ayık kafayla bakmam lazım.",
-    "Korkma ya, yarısından fazlası test dosyası, asıl mantık yirmi satır.",
+    "PR açtım, müsait olunca bakar mısın?",
+    "Kahvemi tazeleyip hemen bakıyorum.",
+    "Çoğu test zaten, asıl kod 20 satır.",
   ],
   [
-    "Acıkmaya başladım ben, bugün ne söylesek acaba?",
-    "Dün kebap yedik ağırlık çöktü, bugün sulu yemek mi söylesek?",
-    "Mantıklı, öğleden sonra ekran başında uyuklamamış oluruz.",
+    "Acıktım ben, ne söylesek bugün?",
+    "Bugün hafif bir ev yemeği iyi gider.",
+    "Mantıklı, öğleden sonra uyuklamayız.",
   ],
   [
-    "Şu yeni özelliğin uç durumlarını test ettin mi, boş dizi gelirse ne oluyor?",
-    "İyi ki söyledin! Boş dizide doğrudan sıfıra bölme çıkacaktı az kalsın.",
-    "Tecrübe konuşuyor işte, prod'da patlamadan yakaladık neyse ki.",
+    "Boş dizi gelirse ne oluyor test ettin mi?",
+    "İyi dedin! Az kalsın patlayacaktı.",
+    "Prod'a çıkmadan yakaladık neyse ki.",
   ],
   [
-    "Fable modelini denedin mi bu hafta, nasıl buldun çıktısını?",
-    "Karmaşık mimari sorularda harika da, ufak işlerde kullanmaya kıyamıyorum.",
-    "Haklısın, ufak düzeltmelerde normal model fazlasıyla yetiyor zaten.",
+    "Ağır modeli denedin mi bu hafta?",
+    "Zor mimaride harika, ufakta kıyamam.",
+    "Aynen, ufak işte hızlı model yetiyor.",
   ],
   [
-    "Tahtadaki şu son iki görevi kim üstlenmişti hatırlıyor musun?",
-    "Biri bende, API tarafı bitti sayılır, sadece önyüz bağlantısı kaldı.",
-    "Süper, önyüz kısmına istersen beraber bakalım, yarım saatte biter.",
+    "Tahtadaki son görev kimdeydi?",
+    "Bende, sadece önyüz bağı kaldı.",
+    "Gel beraber bakalım, hızlı biter.",
   ],
   [
-    "Tekir yine sunucu dolabının dibinde kıvrılmış uyuyor gördün mü?",
-    "Orası fanlardan dolayı sıcacık tabii, ağzının tadını biliyor kerata.",
-    "Kabloları kemirmesin de istediği kadar uyusun valla.",
+    "Tekir yine sunucu dibinde uyuyor.",
+    "Fanların önü sıcacık tabii.",
+    "Kabloları kemirmesin de uyusun.",
   ],
   [
-    "Sabah yazdığım kodu öğleden sonra okuyunca ben mi yazdım dedim.",
-    "Kahveden önceki kodla kahveden sonraki kod arasında dağlar oluyor!",
-    "Kesinlikle, ilk saat sadece ısınma turu atmak lazım klavyede.",
+    "Cache oranı bu hafta çok iyi.",
+    "Oturumu gereksiz sıfırlamayınca öyle.",
+    "Hem hız arttı hem kota rahatladı.",
   ],
   [
-    "Cache okuma oranı bu hafta bayağı iyi görünüyor tabloda.",
-    "Evet, aynı oturumda kalıp gereksiz sıfırlamayınca çok fark ediyor.",
-    "Hem yanıtlar hızlandı hem de limit çubuğu nefes aldı valla.",
-  ],
-  [
-    "Hafta sonu için bir planın var mı, yoksa evde dinlenmece mi?",
-    "Bilgisayarı hiç açmadan iki gün doğada yürüyüş yapmayı düşünüyorum.",
-    "Harika fikir, pazartesiye pırıl pırıl kafayla dönersin.",
-  ],
-  [
-    "Şu bildirim kancası bayağı işe yaradı, limit aşılınca anında uyarıyor.",
-    "Vallahi öyle, eskiden fark etmeden kotayı eritiyorduk dalgınlıkla.",
-    "Yine de dinlemeyip devam edene ofiste meydan dayağı var tabii!",
+    "Hafta sonu planın ne?",
+    "İki gün bilgisayarsız doğa yürüyüşü.",
+    "Harika fikir, kafa sıfırlanır.",
   ],
 ];
 
@@ -3479,22 +3456,22 @@ function istanbulVakit(nowSec, ofisAyar) {
   return { donem: "gece", uykuVakti, saat, sa, dk, gokUst: "#0c1526", gokAlt: "#1c3152", isik: "#5882b8", isikOp: 0.045, lambaOp: 0.36, yildiz: true };
 }
 
-// Canlı veriye ve günün saatine duyarlı ek gerçekçi cümleler
+// Canlı veriye ve günün saatine duyarlı kısa cümleler
 function canliCumleler(S0) {
   const l = [];
   const v = S0.vakit;
-  if (v.donem === "sabah") l.push("Günaydın millet! İlk kahveyi demledim, taze taze alın.", "Sabah sessizliğinde kod yazmanın tadı bir başka oluyor.");
-  else if (v.saat >= 12 && v.saat < 14) l.push("Saat öğleni geçti, yemek siparişini kim açıyor bugün?", "Karnım guruldamaya başladı, öğle molası verelim mi?");
-  else if (v.donem === "aksam") l.push("Akşam güneşi ne güzel vurdu pencereden, günü bitiriyoruz yavaş yavaş.", "Akşam mesaisine kalmadan şu son testi de geçireyim.");
-  else if (v.donem === "gece") l.push("Bu saatte hâlâ ofisteyiz, gece sessizliğinde odaklanmak kolay oluyor.", "Gece kahvesi uykuyu kaçırmasın şimdi, bitki çayına mı geçsek?");
+  if (v.donem === "sabah") l.push("Günaydın! İlk kahve hazır ☕", "Sabah sessizliğinde kod başka.");
+  else if (v.saat >= 12 && v.saat < 14) l.push("Öğle yemeğini kim söylüyor?", "Öğle molası verelim mi?");
+  else if (v.donem === "aksam") l.push("Akşam güneşi harika vurdu.", "Son testi geçirip çıkayım.");
+  else if (v.donem === "gece") l.push("Gece sessizliğinde tam odak.", "Bu saatte bitki çayı iyi gider.");
   if (Number.isFinite(S0.limitPct)) {
     const p = Math.round(S0.limitPct);
-    if (p < 25) l.push(`Haftalık limit daha %${p}'de, gayet rahat gidiyoruz bu hafta.`);
-    else if (p < 70) l.push(`Haftalık limit %${p} olmuş, dengeli gidiyoruz şimdilik.`);
-    else l.push(`Haftalık limit %${p}'e dayanmış! Context'leri biraz kısa tutalım gençler.`);
+    if (p < 25) l.push(`Kota daha %${p}, rahatız.`);
+    else if (p < 70) l.push(`Kota %${p}, dengeli gidiyoruz.`);
+    else l.push(`Kota %${p}! Context'i kısa tutalım.`);
   }
   if (S0.enCokAd && S0.enCokPay >= 35) {
-    l.push(`Bu hafta en çok token'ı ${S0.enCokAd} kullanmış, masasındaki kâğıt yığınına baksanıza!`);
+    l.push(`En kabarık kâğıt yığını ${kisaAd(S0.enCokAd)}'de!`);
   }
   return l;
 }
@@ -4274,7 +4251,7 @@ function officeScene(d, groups, perDev, liveSet, maxUsd, asanlar = new Map(), op
     const devs = grp.devs;
     const asimPuan = asanlar.has(grp.id) ? pctFmt(Math.round(asanlar.get(grp.id) * 10) / 10) : "";
     if (!devs.length) {
-      return `<div class="desk-label empty-desk" ${veriAttr} style="${pos}"><b><i class="dot idle"></i><span class="dl-ad">${esc(grp.ad)}</span></b><span class="dl-alt"><span class="amt">${money(0)}</span></span><small class="dl-durum">cihaz yok</small></div>`;
+      return `<div class="desk-label empty-desk" ${veriAttr} title="${esc(grp.ad)} · cihaz yok" style="${pos}"><i class="dot idle"></i><span class="dl-ad">${esc(grp.ad)}</span><span class="amt">${money(0)}</span></div>`;
     }
     const ds = devs.map(durumOf);
     const on = ds.some((x) => x.on);
@@ -4286,41 +4263,35 @@ function officeScene(d, groups, perDev, liveSet, maxUsd, asanlar = new Map(), op
     const eskiVar = devs.some((x) => isOld(x, d));
     const state = supheliVar ? "bad" : on ? "on" : a.stale ? "stale" : "idle";
     const uyariHtml = asimPuan
-      ? `<small class="dl-uyari bad">+%${asimPuan}<span class="dl-asim-ek"> aşım</span></small>`
+      ? `<small class="dl-uyari bad">+%${asimPuan}</small>`
       : supheliVar
         ? `<small class="dl-uyari bad">şüpheli</small>`
         : dikkatVar
           ? `<small class="dl-uyari warn">dikkat</small>`
           : eskiVar
-            ? `<small class="dl-uyari warn">eski sürüm</small>`
+            ? `<small class="dl-uyari warn">eski</small>`
             : "";
-    const durumHtml = `<small class="dl-durum${!on && a.stale ? " warn" : ""}">${esc(status)}</small>`;
+    const icHtml = `<i class="dot ${state}"></i><span class="dl-ad">${esc(grp.ad)}</span><span class="amt">${money(grp.usd)}</span>${uyariHtml}`;
     if (devs.length === 1) {
       const dev = devs[0];
+      const ipucu = `${grp.ad} · ${money(grp.usd)} · ${status}`;
       if (demoMu) {
-        return `<button type="button" class="desk-label" data-demo-grp="${esc(grp.id)}" ${veriAttr} aria-label="${esc(grp.ad)}, ${money(grp.usd)}, ${esc(status)}" style="${pos}">
-      <b><i class="dot ${state}"></i><span class="dl-ad">${esc(grp.ad)}</span></b><span class="dl-alt"><span class="amt">${money(grp.usd)}</span>${uyariHtml}</span>${uyariHtml ? "" : durumHtml}</button>`;
+        return `<button type="button" class="desk-label" data-demo-grp="${esc(grp.id)}" ${veriAttr} title="${esc(ipucu)}" aria-label="${esc(grp.ad)}, ${money(grp.usd)}, ${esc(status)}" style="${pos}">${icHtml}</button>`;
       }
-      return `<a class="desk-label" href="/pano/bilgisayar/${dev.id}${location.search}" data-link ${veriAttr} aria-label="${esc(grp.ad)}, ${money(grp.usd)}, ${esc(status)}" style="${pos}">
-      <b><i class="dot ${state}"></i><span class="dl-ad">${esc(grp.ad)}</span></b><span class="dl-alt"><span class="amt">${money(grp.usd)}</span>${uyariHtml}</span>${uyariHtml ? "" : durumHtml}</a>`;
+      return `<a class="desk-label" href="/pano/bilgisayar/${dev.id}${location.search}" data-link ${veriAttr} title="${esc(ipucu)}" aria-label="${esc(grp.ad)}, ${money(grp.usd)}, ${esc(status)}" style="${pos}">${icHtml}</a>`;
     }
-    const gosterDevs = devs.slice(0, 3);
-    const kalanDev = devs.length - gosterDevs.length;
+    const cihazOzet = devs.map((dev) => `${dev.label} (${money(perDev.get(dev.id)?.usd || 0)})`).join(", ");
+    const ipucu = `${grp.ad} · ${money(grp.usd)} · ${devs.length} bilgisayar: ${cihazOzet} · ${status}`;
     if (demoMu) {
-      return `<button type="button" class="desk-label multi" data-demo-grp="${esc(grp.id)}" ${veriAttr} aria-label="${esc(grp.ad)}, ${money(grp.usd)}, ${devs.length} bilgisayar" style="${pos}">
-      <b><i class="dot ${state}"></i><span class="dl-ad">${esc(grp.ad)}</span></b><span class="dl-alt"><span class="amt">${money(grp.usd)}</span>${uyariHtml}</span>${uyariHtml ? "" : durumHtml}
-      <span class="dvs">${gosterDevs.map((dev, i) => `<span><i class="dot ${ds[i].state}"></i><span>${esc(dev.label)}</span></span>`).join("")}${kalanDev > 0 ? `<small>+${kalanDev}</small>` : ""}</span></button>`;
+      return `<button type="button" class="desk-label multi" data-demo-grp="${esc(grp.id)}" ${veriAttr} title="${esc(ipucu)}" aria-label="${esc(grp.ad)}, ${money(grp.usd)}, ${devs.length} bilgisayar" style="${pos}">${icHtml}</button>`;
     }
-    return `<div class="desk-label multi" data-dev="${devs[0].id}" ${veriAttr} role="link" tabindex="0" aria-label="${esc(grp.ad)}, ${money(grp.usd)}, ${devs.length} bilgisayar" style="${pos}">
-      <b><i class="dot ${state}"></i><span class="dl-ad">${esc(grp.ad)}</span></b><span class="dl-alt"><span class="amt">${money(grp.usd)}</span>${uyariHtml}</span>${uyariHtml ? "" : durumHtml}
-      <span class="dvs">${gosterDevs.map((dev, i) => `<a href="/pano/bilgisayar/${dev.id}${location.search}" data-link aria-label="${esc(dev.label)}, ${money(perDev.get(dev.id)?.usd || 0)}"><i class="dot ${ds[i].state}"></i><span>${esc(dev.label)}</span></a>`).join("")}${kalanDev > 0 ? `<small>+${kalanDev}</small>` : ""}</span></div>`;
+    return `<a class="desk-label multi" href="/pano/bilgisayar/${devs[0].id}${location.search}" data-link ${veriAttr} title="${esc(ipucu)}" aria-label="${esc(grp.ad)}, ${money(grp.usd)}, ${devs.length} bilgisayar" style="${pos}">${icHtml}</a>`;
   }).join("");
-  const sb = saglayiciBilgi(sglOfis);
   const molaYazi = vakit.uykuVakti ? "Oturan: çalışıyor · Diğerleri: uykuda" : "Oturan: çalışıyor · Gezen: mola";
   const dayakYazi = asanlar.size && ofisAyar.dayakAktif !== false ? `<span>Payı aşana müdahale var</span>` : "";
   const ayarDugme = demoMu ? "" : `<a href="${urlKur("/pano/ayarlar/ofis")}" data-link class="ofis-duraklat" style="text-decoration:none">Ayarlar</a>`;
   const altIpucu = demoMu
-    ? `<span class="hide-sm">Masaya veya kişiye${ofisAyar.kediAktif === false ? "" : "/kediye"} tıkla: canlı tepki · Senaryoyu üstten değiştir</span>`
+    ? `<span class="hide-sm">Masaya veya kişiye${ofisAyar.kediAktif === false ? "" : "/kediye"} tıkla: canlı tepki</span>`
     : `<span class="hide-sm">Masaya tıkla: detay · Kişiye${ofisAyar.kediAktif === false ? "" : "/kediye"} tıkla: tepki</span>`;
   return `<section class="office-stage${OFIS.duraklatildi ? " duraklatildi" : ""}" data-ofis="${esc(sglOfis)}" aria-labelledby="h-ofis">
     <div class="office-topbar"><h2 id="h-ofis"><i class="ofis-rozet" aria-hidden="true"></i><span>${esc(tema.ad)}</span><span class="hide-xs"> · Canlı Simülasyon</span></h2><div class="office-topbar-sag"><small>${groups.length} masa · ${groups.reduce((a, g) => a + g.devs.length, 0)} bilgisayar</small><span class="ofis-aksiyonlar"><button type="button" class="ofis-duraklat ofis-yakin-btn" id="ofis-yakin" aria-pressed="${OFIS.yakin ? "true" : "false"}">${OFIS.yakin ? "Sığdır" : "Yakınlaştır"}</button>${ayarDugme}<button type="button" class="ofis-duraklat" id="ofis-duraklat">${OFIS.duraklatildi ? "Oynat" : "Duraklat"}</button></span></div></div>
@@ -4330,24 +4301,52 @@ function officeScene(d, groups, perDev, liveSet, maxUsd, asanlar = new Map(), op
 }
 
 // Limit payını aşan gruplar (bu hafta, en güncel okumaya göre): panodaki çubukların hesabıyla aynı.
-// Dönüş: grup kimliği -> payını yüzde kaç puan aştığı (haftalık ve Fable'dan büyük olanı) = dayak seviyesi
+// Dönüş: grup kimliği -> payını yüzde kaç puan aştığı (haftalık ve Fable / Claude&GPT özel kotasından büyük olanı) = dayak seviyesi
 function payAsanlar(d, groups) {
   const out = new Map();
   const L = d.limit;
   if (d.start !== d.current || !L || !groups.length) return out;
+  const sgl = d.saglayici || "claude";
   const ayar = d.ayar || SON_AYAR;
   const payMap = grupPaylari(groups, ayar);
   const tolerans = ayar && ayar.ofis && Number.isFinite(ayar.ofis.asimEsik) ? ayar.ofis.asimEsik : 0;
   const grupOf = new Map();
-  for (const g of groups) { g._f = 0; for (const x of g.devs) grupOf.set(x.id, g); }
-  for (const r of d.usage || []) if (FABLE_RE.test(r.model) && grupOf.has(r.device_id)) grupOf.get(r.device_id)._f += r.usd;
-  const toplam = groups.reduce((a, g) => a + g.usd, 0), toplamF = groups.reduce((a, g) => a + g._f, 0);
-  const ham = L.ham || {};
-  const fk = Object.keys(ham).find((k) => FABLE_RE.test(k) && k.endsWith("used_percentage") && Number.isFinite(ham[k]));
+  for (const g of groups) { g._f = 0; g._gem = 0; g._3p = 0; for (const x of g.devs) grupOf.set(x.id, g); }
   const ekle = (id, kullanilan, hak) => {
     const sinir = hak + tolerans;
     if (kullanilan >= sinir - 0.005) out.set(id, Math.max(out.get(id) || 0, kullanilan - hak));
   };
+  const ham = L.ham || {};
+  if (sgl === "gemini") {
+    for (const r of d.usage || []) {
+      const g = grupOf.get(r.device_id);
+      if (!g) continue;
+      if (agyClaudeHavuzuMu(r.model)) g._3p += r.usd;
+      else g._gem += r.usd;
+    }
+    if (L.agy3pPencere && L.agy3pPencere.byDeviceUsd) {
+      for (const g of groups) {
+        g._3p = g.devs.reduce((a, dev) => a + (Number(L.agy3pPencere.byDeviceUsd[dev.id]) || 0), 0);
+      }
+    }
+    const toplamGem = groups.reduce((a, g) => a + g._gem, 0);
+    const toplam3p = groups.reduce((a, g) => a + g._3p, 0);
+    const cpct = Number.isFinite(L.cpct) ? L.cpct : (Number.isFinite(ham["agy_claude.used_percentage"]) ? ham["agy_claude.used_percentage"] : null);
+    for (const g of groups) {
+      const hak = payMap.get(g.id) || 0;
+      const effHak = hak <= 0 ? 0 : hak;
+      if (L.pct !== null && L.pct !== undefined && toplamGem > 0 && (effHak > 0 || g._gem > 0)) {
+        ekle(g.id, L.pct * (g._gem / toplamGem), effHak);
+      }
+      if (cpct !== null && toplam3p > 0 && (effHak > 0 || g._3p > 0)) {
+        ekle(g.id, cpct * (g._3p / toplam3p), effHak);
+      }
+    }
+    return out;
+  }
+  for (const r of d.usage || []) if (FABLE_RE.test(r.model) && grupOf.has(r.device_id)) grupOf.get(r.device_id)._f += r.usd;
+  const toplam = groups.reduce((a, g) => a + g.usd, 0), toplamF = groups.reduce((a, g) => a + g._f, 0);
+  const fk = Object.keys(ham).find((k) => FABLE_RE.test(k) && k.endsWith("used_percentage") && Number.isFinite(ham[k]));
   for (const g of groups) {
     const hak = payMap.get(g.id) || 0;
     if (hak <= 0 && (g.usd > 0 || g._f > 0)) {
@@ -4824,7 +4823,7 @@ function ofisBaslat() {
     el.addEventListener("click", (ev) => {
       if (s.mod === "otur" || s.mod === "yerles" || s.mod === "kalkis" || s.mod === "yatakYerles" || s.mod === "yatakKalkis") return;
       ev.stopPropagation();
-      balonGoster(s, sec(s.mod === "yatakUyu" ? SOZ.uykuTikla : SOZ.tikla), s.mod === "yatakUyu" ? 10 : 12, "tik");
+      balonGoster(s, sec(s.mod === "yatakUyu" ? SOZ.uykuTikla : SOZ.tikla), 4.8, "tik");
     });
     if (sohbetAktif && s.balonMetin && s.balonBit > tBas) balonCiz(s, s.balonMetin);
     else if (!sohbetAktif) { s.balonMetin = ""; s.balonBit = 0; }
@@ -4861,32 +4860,16 @@ function ofisBaslat() {
   balonKatman.appendChild(kediBalonEl);
   kedi.el = kediEl; kedi.ust = kediUst; kedi.balonEl = kediBalonEl;
 
-  function balonOlc(hedef, bEl) {
-    bEl.style.maxWidth = "";
-    bEl.style.width = "max-content";
-    const ustGen = Math.max(76, (offEl.clientWidth || 800) - 10);
-    bEl.style.left = "0px";
-    bEl.style.top = "0px";
-    bEl.style.display = "block";
-    let w = Math.ceil(bEl.getBoundingClientRect().width) || bEl.offsetWidth || 108;
-    if (w > ustGen) {
-      bEl.style.maxWidth = `${ustGen}px`;
-      w = Math.ceil(bEl.getBoundingClientRect().width) || bEl.offsetWidth || ustGen;
-    }
-    const h = Math.ceil(bEl.getBoundingClientRect().height) || bEl.offsetHeight || 26;
-    bEl.style.width = `${w}px`;
-    hedef.balonW = w;
-    hedef.balonH = h;
-  }
-
   kediEl.addEventListener("click", (ev) => {
     if (!kediAktif) return;
     ev.stopPropagation();
     const tNow = simdi();
     kedi.mod = "bekle"; kedi.bekle = tNow + 6;
-    kedi.balonBas = tNow; kedi.balonBit = tNow + 8.5; kedi.zorunluBalon = "tik";
-    kediBalonEl.innerHTML = `<span class="ob-ad"><i style="background:#df8840"></i>${esc(kediAd)}:</span>Mırrr~ 🐾<span class="ob-ok"></span>`;
-    balonOlc(kedi, kediBalonEl);
+    kedi.balonBas = tNow; kedi.balonBit = tNow + 4.2; kedi.zorunluBalon = "tik";
+    kediBalonEl.className = "ofis-balon";
+    kediBalonEl.style.setProperty("--pin-renk", "#df8840");
+    kediBalonEl.innerHTML = `<b class="ob-ad">${esc(kediAd)}</b>Mırrr~ 🐾`;
+    kedi.balonOlc = true;
     if (OFIS.duraklatildi || azHareket) ciz(tNow);
   });
 
@@ -4894,30 +4877,33 @@ function ofisBaslat() {
   bulut.setAttribute("class", "kavga-bulutlari");
   ust.prepend(bulut);
 
-  // Küçük, az yer kaplayan HTML konuşma balonu (etiketlerle ve diğer balonlarla çakışmaz)
+  // Karakterin hemen başına bitişik, sahneyi kapatmayan minimal sohbet balonu
   function balonCiz(s, metin) {
     const kavga = s.mod === "dov" || s.dayakYiyor;
+    const masaOtur = s.mod === "otur";
+    const adGoster = !masaOtur;
     s.balonEl.className = "ofis-balon" + (kavga ? " kavga-b" : "");
-    s.balonEl.innerHTML = `<span class="ob-ad"><i style="background:${s.renk}"></i>${esc(kisaAd(s.ad))}:</span>${esc(metin)}<span class="ob-ok"></span>`;
-    balonOlc(s, s.balonEl);
+    s.balonEl.style.setProperty("--pin-renk", kavga ? "#f2796e" : s.renk);
+    s.balonEl.innerHTML = `${adGoster ? `<b class="ob-ad">${esc(kisaAd(s.ad))}</b>` : ""}${esc(metin)}`;
+    s.balonAdli = adGoster;
+    s.balonOlc = true;
   }
 
   function balonGoster(s, metin, ozelSure = 0, zorla = false) {
     if (!sohbetAktif && !zorla) return false;
     const t = simdi();
     const kavga = s.mod === "dov" || s.dayakYiyor;
-    const darSahne = (offEl.clientWidth || 800) < 540;
-    const ustSinir = !darSahne && kavga ? 2 : 1;
+    const ustSinir = kavga ? 2 : 1;
     const acik = kisiler.filter((x) => x !== s && x.balonBit > t);
-    if (!zorla && !s.diyalog && (acik.length >= ustSinir || (darSahne && kedi.balonBit > t))) return false;
+    if (!zorla && !s.diyalog && acik.length >= ustSinir) return false;
     if (acik.length >= ustSinir) {
-      acik.sort((a, b) => (a.zorunluBalon ? 1 : 0) - (b.zorunluBalon ? 1 : 0) || (a.dayakYiyor ? 1 : 0) - (b.dayakYiyor ? 1 : 0) || a.balonBit - b.balonBit);
+      acik.sort((a, b) => (a.zorunluBalon ? 1 : 0) - (b.zorunluBalon ? 1 : 0) || a.balonBit - b.balonBit);
       while (acik.length >= ustSinir) {
         const eski = acik.shift();
-        eski.balonBit = Math.min(eski.balonBit, t + 0.28);
+        eski.balonBit = Math.min(eski.balonBit, t + 0.25);
       }
     }
-    const sure = ozelSure || (kavga ? 8.5 + Math.random() * 2.5 : Math.min(14.5, 10 + metin.length * 0.055));
+    const sure = zorla === "tik" ? 4.8 : (ozelSure || (kavga ? 4.4 : 3.9));
     s.balonMetin = metin;
     s.balonBas = t;
     s.balonBit = t + sure;
@@ -4931,7 +4917,7 @@ function ofisBaslat() {
     const s = kisiler.find((x) => x.id === grpId);
     if (!s) return;
     const havuz = s.dayakYiyor || (dayakAktif && s.asim) ? SOZ.dayak : s.mod === "yatakUyu" ? SOZ.uykuTikla : s.mod === "otur" ? SOZ.otur : SOZ.tikla;
-    balonGoster(s, sec(havuz), 10, "tik");
+    balonGoster(s, sec(havuz), 4.8, "tik");
   };
 
   const asanlar = dayakAktif ? kisiler.filter((s) => s.asim && s.canli) : [];
@@ -5105,7 +5091,7 @@ function ofisBaslat() {
       const yeniDayak = masaOturuyor && s.asim && asanlar.includes(s) && kisiler.some((o) => o.mod === "dov" && o.hedefKisi === s);
       if (yeniDayak && !s.dayakYiyor) {
         s.dayakYiyor = true;
-        balonGoster(s, sec(SOZ.dayak), 10.5, true);
+        balonGoster(s, sec(SOZ.dayak), 5.2, true);
       }
       s.dayakYiyor = yeniDayak;
       if (s.dayakYiyor) {
@@ -5146,9 +5132,10 @@ function ofisBaslat() {
           acikBalonlar.push(s);
         }
       }
-      // Masada otururken üstte zaten masa kartı var; konuşurken de balonun içinde isim yazıyor: çift etiketi gizle
+      // Konuşma balonu açıkken isim balonun içinde gösterilir (çift kutu üst üste binmez)
       s.kisiEtiketAcik = !masaOturuyor && !s.balonMetin;
       if (s.kisiEtiketEl) s.kisiEtiketEl.style.display = s.kisiEtiketAcik ? "" : "none";
+      if (s.dayakEtiketEl) s.dayakEtiketEl.style.display = s.balonMetin ? "none" : "";
 
       if (s.zzEl) {
         if (s.mod === "yatakUyu" && !s.balonMetin) {
@@ -5198,168 +5185,111 @@ function ofisBaslat() {
       s.etiket.setAttribute("transform", `translate(${s.etiketX.toFixed(1)} ${s.etiketY.toFixed(1)})`);
     }
 
-    // 3) Konuşma balonlarını (kişiler + kedi) masa kartlarına ve birbirine değmeyecek en uygun noktaya yerleştir
+    // 3) Minimal sohbet balonlarını doğrudan insan figürlerine bitişik, masa kartlarına çarpmadan yerleştir
     const kediKonusuyor = kediAktif && kedi.balonBit > t;
     if (acikBalonlar.length || kediKonusuyor) {
       const offW = sahneGen || offEl.clientWidth || 800;
       const offH = sahneYuk || offEl.clientHeight || 450;
-      if (Math.abs(offW - sonBalonOffW) > 1) {
+      if (sonBalonOffW !== offW) {
         sonBalonOffW = offW;
-        for (const s of acikBalonlar) balonOlc(s, s.balonEl);
-        if (kediKonusuyor) balonOlc(kedi, kediBalonEl);
+        for (const s of acikBalonlar) s.balonOlc = true;
+        if (kediKonusuyor) kedi.balonOlc = true;
       }
       const toPxX = (vx) => ((vx - S0.vb.minX) / S0.vb.vw) * offW;
       const toPxY = (vy) => ((vy - S0.vb.minY) / S0.vb.vh) * offH;
-      const olcek = offW / S0.vb.vw;
 
-      const engeller = [];
-      for (const mk of OFIS.masaKutulari) {
-        engeller.push({ sol: mk.sol - 4, sag: mk.sag + 4, ust: mk.ust - 3, alt: mk.alt + 5, agirlik: 320, sert: true, sahip: null });
-      }
-      for (const k of kisiler) {
-        if (k.kisiEtiketAcik || k.dayakEtiketEl) {
-          const yariSvg = k.dayakEtiketEl ? Math.max(k.etiketYariW, k.dayakYariW || 0) : k.etiketYariW;
-          const yukSvg = k.dayakEtiketEl ? 24.5 : 12.5;
-          const ex = toPxX(k.etiketX), ey = toPxY(k.etiketY);
-          engeller.push({ sol: ex - yariSvg * olcek - 3, sag: ex + yariSvg * olcek + 3, ust: ey - yukSvg * olcek - 2, alt: ey + 2, agirlik: 110, sert: false, sahip: k });
+      const kutular = acikBalonlar.map((s) => {
+        const adGoster = !s.masaOturuyor;
+        if (s.balonAdli !== adGoster) balonCiz(s, s.balonMetin);
+        s.balonEl.style.display = "inline-block";
+        if (s.balonOlc || !s.balonGen) {
+          s.balonGen = s.balonEl.offsetWidth || 92;
+          s.balonYuk = s.balonEl.offsetHeight || 19;
+          s.balonOlc = false;
         }
-        const kx = toPxX(k.sx), kyUst = toPxY(k.basY), kyAlt = toPxY(k.sy);
-        engeller.push({ sol: kx - 9 * olcek - 2, sag: kx + 9 * olcek + 2, ust: kyUst, alt: Math.max(kyUst + 8, kyAlt - 4 * olcek), agirlik: 44, sert: false, sahip: k });
-      }
-
-      const konusanlar = acikBalonlar.map((s) => ({
-        ref: s, el: s.balonEl, bw: s.balonW || 108, bh: s.balonH || 26,
-        px: toPxX(s.sx),
-        py: toPxY(s.dayakEtiketEl ? s.etiketY - 24 : s.basY),
-        ayakAlt: toPxY(s.sy) + 6,
-        bas: s.balonBas, bit: s.balonBit,
-        kavga: s.mod === "dov" || s.dayakYiyor,
-        zorunlu: s.zorunluBalon,
-        iptal: () => {
-          s.balonMetin = ""; s.balonBit = 0; s.zorunluBalon = false; s.balonEl.dataset.acik = "0"; s.balonEl.style.display = "none";
-          if (!s.masaOturuyor && s.kisiEtiketEl) { s.kisiEtiketAcik = true; s.kisiEtiketEl.style.display = ""; }
-        },
-      }));
+        const ax = toPxX(s.sx);
+        const ay = toPxY(s.basY - 1.5) - 2;
+        return { el: s.balonEl, ax, ay, w: s.balonGen, h: s.balonYuk, bas: s.balonBas, bit: s.balonBit };
+      });
       if (kediKonusuyor) {
         const [ksx, ksy] = iso(kedi.x, kedi.y, 0);
-        konusanlar.push({
-          ref: kedi, el: kediBalonEl, bw: kedi.balonW || 92, bh: kedi.balonH || 24,
-          px: toPxX(ksx), py: toPxY(ksy - 13), ayakAlt: toPxY(ksy) + 5,
-          bas: kedi.balonBas, bit: kedi.balonBit, kavga: false, zorunlu: kedi.zorunluBalon || "tik",
-          iptal: () => { kedi.balonBit = 0; kedi.zorunluBalon = false; kediBalonEl.dataset.acik = "0"; kediBalonEl.style.display = "none"; },
+        kediBalonEl.style.display = "inline-block";
+        if (kedi.balonOlc || !kedi.balonW) {
+          kedi.balonW = kediBalonEl.offsetWidth || 72;
+          kedi.balonH = kediBalonEl.offsetHeight || 19;
+          kedi.balonOlc = false;
+        }
+        kutular.push({
+          el: kediBalonEl,
+          ax: toPxX(ksx),
+          ay: toPxY(ksy - 13) - 2,
+          w: kedi.balonW,
+          h: kedi.balonH,
+          bas: kedi.balonBas,
+          bit: kedi.balonBit,
         });
       }
-      const oncelik = (z) => (z === "tik" ? 0 : z ? 1 : 2);
-      konusanlar.sort((a, b) => oncelik(a.zorunlu) - oncelik(b.zorunlu) || a.py - b.py);
 
-      for (const b of konusanlar) {
+      for (const b of kutular) {
+        const maxKay = Math.max(22, b.w * 0.45);
+        b.minCx = Math.max(b.w * 0.5 + 3, b.ax - maxKay);
+        b.maxCx = Math.min(offW - b.w * 0.5 - 3, b.ax + maxKay);
+        if (b.minCx > b.maxCx) {
+          const orta = Math.max(b.w * 0.5 + 3, Math.min(offW - b.w * 0.5 - 3, b.ax));
+          b.minCx = orta; b.maxCx = orta;
+        }
+        b.minAltY = Math.max(b.h + 3, b.ay - 16);
+        b.maxAltY = Math.min(offH - 4, b.ay + 24);
+        if (b.minAltY > b.maxAltY) b.minAltY = b.maxAltY = Math.max(b.h + 3, Math.min(offH - 4, b.ay));
+        b.cx = Math.max(b.minCx, Math.min(b.maxCx, b.ax));
+        b.altY = Math.max(b.minAltY, Math.min(b.maxAltY, b.ay));
+      }
+
+      // Masa etiketlerinden ve diğer açık balonlardan figürden koparmadan hafifçe sıyır
+      const masaKutular = OFIS.masaKutulari || [];
+      for (let tur = 0; tur < 8; tur++) {
+        for (const b of kutular) {
+          for (const m of masaKutular) {
+            const mCx = (m.sol + m.sag) * 0.5, mCy = (m.ust + m.alt) * 0.5;
+            const mW = m.sag - m.sol, mH = m.alt - m.ust;
+            const dx = b.cx - mCx, ox = (b.w + mW) * 0.5 + 3.5 - Math.abs(dx);
+            if (ox <= 0) continue;
+            const dy = (b.altY - b.h * 0.5) - mCy, oy = (b.h + mH) * 0.5 + 3.5 - Math.abs(dy);
+            if (oy <= 0) continue;
+            const yon = dx >= 0 ? 1 : -1;
+            b.cx = Math.max(b.minCx, Math.min(b.maxCx, b.cx + yon * (ox + 0.5)));
+            const kalanOx = (b.w + mW) * 0.5 + 3.5 - Math.abs(b.cx - mCx);
+            if (kalanOx > 0) {
+              b.altY = Math.max(b.minAltY, Math.min(b.maxAltY, b.altY + (dy >= 0 ? 1 : -1) * (oy + 0.5)));
+            }
+          }
+        }
+        for (let i = 0; i < kutular.length; i++) {
+          const A = kutular[i];
+          for (let j = i + 1; j < kutular.length; j++) {
+            const B = kutular[j];
+            const dx = B.cx - A.cx, ox = (A.w + B.w) * 0.5 + 4 - Math.abs(dx);
+            if (ox <= 0) continue;
+            const dy = (B.altY - B.h * 0.5) - (A.altY - A.h * 0.5), oy = (A.h + B.h) * 0.5 + 3 - Math.abs(dy);
+            if (oy <= 0) continue;
+            const yon = dx >= 0 ? 1 : -1;
+            A.cx = Math.max(A.minCx, Math.min(A.maxCx, A.cx - yon * ox * 0.52));
+            B.cx = Math.max(B.minCx, Math.min(B.maxCx, B.cx + yon * ox * 0.52));
+          }
+        }
+      }
+
+      for (const b of kutular) {
         const gecen = t - b.bas, kalan = b.bit - t;
-        const op = azHareket ? 1 : Math.max(0, Math.min(1, gecen / 0.32, kalan / 0.55));
-        const girisY = !azHareket && gecen < 0.32 ? (1 - gecen / 0.32) * 4 : 0;
-        const { px, py, ayakAlt, bw, bh } = b;
-        const ustBos = 5, yanBos = Math.max(10, 12 * olcek);
-        const minCx = Math.min(offW * 0.5, bw * 0.5 + 4);
-        const maxCx = Math.max(offW * 0.5, offW - bw * 0.5 - 4);
-        const minAltY = Math.min(offH - 4, bh + 4);
-        const maxAltY = Math.max(minAltY, offH - 4);
-
-        const degerlendir = (adX, adAltY) => {
-          const cx = Math.max(minCx, Math.min(maxCx, adX));
-          const altY = Math.max(minAltY, Math.min(maxAltY, adAltY));
-          const sol = cx - bw * 0.5, sag = cx + bw * 0.5, ustY = altY - bh;
-          const dxKutu = Math.max(0, sol + 8 - px, px - (sag - 8));
-          const dyKutu = ustY > ayakAlt ? ustY - ayakAlt : altY < py ? py - altY : 0;
-          let ceza = Math.hypot(cx - px, (ustY + altY) * 0.5 - (py - bh * 0.38)) * 0.28;
-          if (dxKutu > 24) ceza += (dxKutu - 24) * 1.9;
-          if (dyKutu > 32) ceza += (dyKutu - 32) * 1.7;
-          if (ustY >= ayakAlt - 4) ceza += 11;
-          let sertAlan = 0;
-          for (const e of engeller) {
-            if (e.sahip === b.ref && altY <= py + 4) continue;
-            const ox = Math.max(0, Math.min(sag, e.sag) - Math.max(sol, e.sol));
-            const oy = Math.max(0, Math.min(altY, e.alt) - Math.max(ustY, e.ust));
-            if (ox > 0 && oy > 0) {
-              ceza += ox * oy * e.agirlik;
-              if (e.sert) sertAlan += ox * oy;
-            }
-          }
-          return { cx, altY, sol, sag, ustY, ceza, sertAlan, dxKutu };
-        };
-
-        const adaylar = [
-          [px, py - ustBos],
-          [px - bw * 0.36, py - ustBos],
-          [px + bw * 0.36, py - ustBos],
-          [px - bw * 0.72, py - ustBos],
-          [px + bw * 0.72, py - ustBos],
-          [px - bw * 0.5 - yanBos, py + bh * 0.42],
-          [px + bw * 0.5 + yanBos, py + bh * 0.42],
-          [px - bw * 0.5 - yanBos - 4, py + bh * 0.9],
-          [px + bw * 0.5 + yanBos + 4, py + bh * 0.9],
-          [px, py - ustBos - bh * 0.72],
-          [px - bw * 0.52, py - ustBos - bh * 0.68],
-          [px + bw * 0.52, py - ustBos - bh * 0.68],
-          [px, ayakAlt + bh + 4],
-          [px - bw * 0.45, ayakAlt + bh + 4],
-          [px + bw * 0.45, ayakAlt + bh + 4],
-        ];
-
-        let enIyi = null;
-        for (const [ax, ay] of adaylar) {
-          const sonuc = degerlendir(ax, ay);
-          if (!enIyi || sonuc.ceza < enIyi.ceza) {
-            enIyi = sonuc;
-            if (sonuc.sertAlan === 0 && sonuc.ceza < 14) break;
-          }
-        }
-        // Tüm yakın adaylar bir masa kartına veya başka balona değiyorsa önce çevrede, sonra tüm sahnede boş cep ara
-        if (enIyi.sertAlan > 0) {
-          for (const dyOff of [-bh * 1.35, -bh * 0.35, bh * 0.55, ayakAlt - py + bh + 8]) {
-            for (const dxOff of [-bw * 1.1, -bw * 0.55, 0, bw * 0.55, bw * 1.1]) {
-              const sonuc = degerlendir(px + dxOff, py + dyOff);
-              if (sonuc.ceza < enIyi.ceza) enIyi = sonuc;
-            }
-          }
-        }
-        if (enIyi.sertAlan > 0) {
-          for (let gi = 0; gi <= 5; gi++) {
-            const gx = minCx + ((maxCx - minCx) * gi) / 5;
-            for (let gj = 0; gj <= 4; gj++) {
-              const gy = minAltY + ((maxAltY - minAltY) * gj) / 4;
-              const sonuc = degerlendir(gx, gy);
-              if (sonuc.ceza < enIyi.ceza) enIyi = sonuc;
-            }
-          }
-        }
-        // Kullanıcı bizzat tıklamadıysa ve sahnede hiç çakışmasız cep kalmadıysa otomatik balonu gizle (üst üste binmesin)
-        if (b.zorunlu !== "tik" && (enIyi.sertAlan > 1 || (!b.zorunlu && enIyi.dxKutu > 58))) {
-          b.iptal();
-          continue;
-        }
-
-        engeller.push({ sol: enIyi.sol - 7, sag: enIyi.sag + 7, ust: enIyi.ustY - 6, alt: enIyi.altY + 6, agirlik: 2400, sert: true, sahip: b.ref });
+        const op = azHareket ? 1 : Math.max(0, Math.min(1, gecen / 0.2, kalan / 0.38));
+        const girisY = !azHareket && gecen < 0.2 ? (1 - gecen / 0.2) * 2.5 : 0;
+        const okSinir = Math.max(0, b.w * 0.5 - 6);
+        const okX = Math.max(-okSinir, Math.min(okSinir, b.ax - b.cx));
         b.el.dataset.acik = "1";
-        b.el.style.display = "block";
-        b.el.style.left = `${enIyi.cx.toFixed(1)}px`;
-        b.el.style.top = `${(enIyi.altY + girisY).toFixed(1)}px`;
+        b.el.style.left = `${b.cx.toFixed(1)}px`;
+        b.el.style.top = `${(b.altY + girisY).toFixed(1)}px`;
+        b.el.style.setProperty("--ok-x", `${okX.toFixed(1)}px`);
         b.el.style.opacity = op.toFixed(2);
-        const ok = b.el.querySelector(".ob-ok");
-        if (ok) {
-          const kenar = b.kavga ? "rgba(240,120,109,.55)" : "rgba(255,255,255,.15)";
-          if (enIyi.altY <= py + 8) {
-            const ox = Math.max(9, Math.min(bw - 9, px - enIyi.sol));
-            ok.style.cssText = `left:${ox.toFixed(1)}px;top:100%;border-right:1px solid ${kenar};border-bottom:1px solid ${kenar}`;
-          } else if (enIyi.ustY >= ayakAlt - 8) {
-            const ox = Math.max(9, Math.min(bw - 9, px - enIyi.sol));
-            ok.style.cssText = `left:${ox.toFixed(1)}px;top:0%;border-left:1px solid ${kenar};border-top:1px solid ${kenar}`;
-          } else if (enIyi.cx < px) {
-            const oy = Math.max(8, Math.min(bh - 8, (py + 8) - enIyi.ustY));
-            ok.style.cssText = `left:100%;top:${oy.toFixed(1)}px;border-top:1px solid ${kenar};border-right:1px solid ${kenar}`;
-          } else {
-            const oy = Math.max(8, Math.min(bh - 8, (py + 8) - enIyi.ustY));
-            ok.style.cssText = `left:0%;top:${oy.toFixed(1)}px;border-left:1px solid ${kenar};border-bottom:1px solid ${kenar}`;
-          }
-        }
       }
     }
 
@@ -5433,10 +5363,10 @@ function ofisBaslat() {
         if (d.adim < d.replikler.length) {
           const konusan = d.adim % 2 === 0 ? d.a : d.b;
           const metin = d.replikler[d.adim];
-          const sure = Math.min(16, 12 + metin.length * 0.06);
+          const sure = 4.6;
           balonGoster(konusan, metin, sure, true);
           d.adim++;
-          d.sonraki = t + sure - 1.6; // önceki cümle bitmeye yakın doğal karşılık gelir
+          d.sonraki = t + sure - 0.35; // önceki cümle biterken doğal karşılık gelir
         } else {
           d.a.mod = "bekle"; d.a.bekle = t + 2 + Math.random() * 4; d.a.soz = t + 10 + Math.random() * 14;
           d.b.mod = "bekle"; d.b.bekle = t + 2 + Math.random() * 4; d.b.soz = t + 10 + Math.random() * 14;
@@ -5622,7 +5552,7 @@ function ofisBaslat() {
         if (s.mod === "yataga" || s.mod === "yatakYerles" || s.mod === "yatakKalkis") {
           s.soz = t + 10 * sohbetCarpan;
         } else if (s.mod === "yatakUyu") {
-          const gosterildi = balonGoster(s, sec(SOZ.uyku), 8.5);
+          const gosterildi = balonGoster(s, sec(SOZ.uyku), 4.5);
           s.soz = t + (gosterildi ? (34 + Math.random() * 28) * sohbetCarpan : 8 + Math.random() * 6);
         } else {
           let metin;
@@ -5897,66 +5827,50 @@ function limitPanel(d, perDev, gun = null) {
     ? (Number.isFinite(ham["thirty_day.resets_at"]) ? ham["thirty_day.resets_at"] : (Number.isFinite(ham["chatgpt_30d.resets_at"]) ? ham["chatgpt_30d.resets_at"] : 0))
     : 0;
   const m30Pct = m30Ham !== null && (!m30ResetSn || m30ResetSn > d.now) ? m30Ham : null;
-  const agyClaudePct = sgl === "gemini" && gun === null && canli && ham && Number.isFinite(ham["agy_claude.used_percentage"]) ? ham["agy_claude.used_percentage"] : null;
-  const agyGeminiPct = sgl === "gemini" && gun === null && canli && ham && Number.isFinite(ham["agy_gemini.used_percentage"]) ? ham["agy_gemini.used_percentage"] : null;
+  const agyClaudePct = sgl === "gemini"
+    ? (canli
+      ? (L && Number.isFinite(L.cpct) ? L.cpct : (ham && Number.isFinite(ham["agy_claude.used_percentage"]) ? ham["agy_claude.used_percentage"] : null))
+      : seriAt(L && L.cseri, kesit))
+    : null;
+  const agyClaudeResetSn = sgl === "gemini" && canli
+    ? (L && Number.isFinite(L.cr) && L.cr > d.now ? L.cr : (ham && Number.isFinite(ham["agy_claude.resets_at"]) && ham["agy_claude.resets_at"] > d.now ? ham["agy_claude.resets_at"] : 0))
+    : 0;
+  const agyClaudeReset = agyClaudePct !== null && agyClaudeResetSn > d.now ? `${gunAd(agyClaudeResetSn)} ${hm(agyClaudeResetSn)}` : "";
   const agyClaude5Pct = sgl === "gemini" && gun === null && canli && ham && Number.isFinite(ham["agy_claude_5h.used_percentage"]) && (!Number.isFinite(ham["agy_claude_5h.resets_at"]) || ham["agy_claude_5h.resets_at"] > d.now)
     ? ham["agy_claude_5h.used_percentage"] : null;
-  const agyGemini5Pct = sgl === "gemini" && gun === null && canli && ham && Number.isFinite(ham["agy_gemini_5h.used_percentage"]) && (!Number.isFinite(ham["agy_gemini_5h.resets_at"]) || ham["agy_gemini_5h.resets_at"] > d.now)
-    ? ham["agy_gemini_5h.used_percentage"] : null;
-  const agyClaudeReset = agyClaudePct !== null && Number.isFinite(ham["agy_claude.resets_at"]) && ham["agy_claude.resets_at"] > d.now ? `${gunAd(ham["agy_claude.resets_at"])} ${hm(ham["agy_claude.resets_at"])}` : "";
-  const agyGeminiReset = agyGeminiPct !== null && Number.isFinite(ham["agy_gemini.resets_at"]) && ham["agy_gemini.resets_at"] > d.now ? `${gunAd(ham["agy_gemini.resets_at"])} ${hm(ham["agy_gemini.resets_at"])}` : "";
   const agyClaude5Reset = agyClaude5Pct !== null && Number.isFinite(ham["agy_claude_5h.resets_at"]) && ham["agy_claude_5h.resets_at"] > d.now ? hm(ham["agy_claude_5h.resets_at"]) : "";
-  const agyGemini5Reset = agyGemini5Pct !== null && Number.isFinite(ham["agy_gemini_5h.resets_at"]) && ham["agy_gemini_5h.resets_at"] > d.now ? hm(ham["agy_gemini_5h.resets_at"]) : "";
-  const agyGeminiUyeSatirlari = agyGeminiPct !== null && totalAgyGemini > 0
-    ? `<ul class="agy-havuz-uyeler" aria-label="Antigravity Gemini havuzu kişi başı dağılım">${[...groups]
-        .filter((g) => g.agyGeminiUsd > 0)
-        .sort((a, b) => b.agyGeminiUsd - a.agyGeminiUsd)
-        .map((g) => {
-          const pay = agyGeminiPct * (g.agyGeminiUsd / totalAgyGemini);
-          return `<li><span>${esc(g.ad)}</span><b>%${pctFmt(pay)} · ${money(g.agyGeminiUsd)}</b></li>`;
-        }).join("")}</ul>`
-    : "";
-  const agyClaudeUyeSatirlari = agyClaudePct !== null && totalAgyClaude > 0
-    ? `<ul class="agy-havuz-uyeler" aria-label="Antigravity Claude ve GPT havuzu kişi başı dağılım">${[...groups]
-        .filter((g) => g.agyClaudeUsd > 0)
-        .sort((a, b) => b.agyClaudeUsd - a.agyClaudeUsd)
-        .map((g) => {
-          const pay = agyClaudePct * (g.agyClaudeUsd / totalAgyClaude);
-          return `<li><span>${esc(g.ad)}</span><b>%${pctFmt(pay)} · ${money(g.agyClaudeUsd)}</b></li>`;
-        }).join("")}</ul>`
-    : "";
-  const agyHavuzHtml = (agyGeminiPct !== null || agyClaudePct !== null)
-    ? `<div class="agy-havuzlar" aria-label="Antigravity model havuzları">
-        ${agyGeminiPct !== null ? `<div class="agy-havuz">
-          <div class="agy-havuz-ust"><span>Antigravity · Gemini Havuzu</span><b>%${pctFmt(agyGeminiPct)}${totalAgyGemini > 0 ? ` · ${money(totalAgyGemini)}` : ""}</b></div>
-          <span class="lbar" role="img" aria-label="Antigravity Gemini havuzu %${pctFmt(agyGeminiPct)}"><i style="width:${Math.min(100, agyGeminiPct).toFixed(1)}%;background:#3b82f6"></i></span>
-          <div class="agy-havuz-alt">Gemini 4 Carbon/Argon · 3.8/3.5 Flash${agyGemini5Pct !== null ? ` · 5s: %${pctFmt(agyGemini5Pct)}${agyGemini5Reset ? ` (${esc(agyGemini5Reset)})` : ""}` : ""}${agyGeminiReset ? ` · Haftalık sıfırlama: ${esc(agyGeminiReset)}` : ""}</div>
-          ${agyGeminiUyeSatirlari}
-        </div>` : ""}
-        ${agyClaudePct !== null ? `<div class="agy-havuz">
-          <div class="agy-havuz-ust"><span>Antigravity · Claude / GPT Havuzu</span><b>%${pctFmt(agyClaudePct)}${totalAgyClaude > 0 ? ` · ${money(totalAgyClaude)}` : ""}</b></div>
-          <span class="lbar" role="img" aria-label="Antigravity Claude ve GPT havuzu %${pctFmt(agyClaudePct)}"><i style="width:${Math.min(100, agyClaudePct).toFixed(1)}%;background:#8b5cf6"></i></span>
-          <div class="agy-havuz-alt">Claude Opus/Sonnet 5.5 &amp; 4.6 · GPT${agyClaude5Pct !== null ? ` · 5s: %${pctFmt(agyClaude5Pct)}${agyClaude5Reset ? ` (${esc(agyClaude5Reset)})` : ""}` : ""}${agyClaudeReset ? ` · Haftalık sıfırlama: ${esc(agyClaudeReset)}` : ""}</div>
-          ${agyClaudeUyeSatirlari}
-        </div>` : ""}
-      </div>`
-    : "";
-  const agyAyrikMod = sgl === "gemini" && !(L && L.elle) && agyGeminiPct !== null && pct !== null && Math.abs(pct - agyGeminiPct) < 0.05;
-  const rows = n ? [...groups].sort((a, b) => b.usd - a.usd).map((g) => {
+  const canli3pByDev = sgl === "gemini" && canli && gun === null && L && L.agy3pPencere && L.agy3pPencere.byDeviceUsd ? L.agy3pPencere.byDeviceUsd : null;
+  for (const g of groups) {
+    g.cHavuzUsd = canli3pByDev
+      ? g.devs.reduce((a, dev) => a + (Number(canli3pByDev[dev.id]) || 0), 0)
+      : g.agyClaudeUsd;
+  }
+  const totalCHavuz = groups.reduce((a, g) => a + g.cHavuzUsd, 0);
+  const rows = n ? [...groups].sort((a, b) => (sgl === "gemini" ? (b.agyGeminiUsd - a.agyGeminiUsd || b.usd - a.usd) : (b.usd - a.usd))).map((g) => {
     const hak = payMap.has(g.id) ? payMap.get(g.id) : equal;
     const alt = g.devs.length > 1 ? `<small class="ldv">${g.devs.map((x) => esc(x.label)).join(", ")}</small>` : g.devs.length ? "" : `<small class="ldv">bilgisayar yok</small>`;
     if (pct === null) {
-      const payYuzde = total > 0 ? Math.min(100, (g.usd / total) * 100) : 0;
-      const aria = `${g.ad}: haftalık harcama ${money(g.usd)}${total > 0 ? ` (%${pctFmt(payYuzde)} pay)` : ""}, kota hakkı %${pctFmt(hak)}`;
-      const havuzAlt = sgl === "gemini" && (g.agyGeminiUsd > 0 || g.agyClaudeUsd > 0)
-        ? ` · Gemini ${money(g.agyGeminiUsd)}${g.agyClaudeUsd > 0 ? ` · Claude/GPT ${money(g.agyClaudeUsd)}` : ""}`
-        : "";
+      const bazTop = sgl === "gemini" && totalAgyGemini > 0 ? totalAgyGemini : total;
+      const bazUsd = sgl === "gemini" && totalAgyGemini > 0 ? g.agyGeminiUsd : g.usd;
+      const payYuzde = bazTop > 0 ? Math.min(100, (bazUsd / bazTop) * 100) : 0;
+      const aria = `${g.ad}: haftalık harcama ${money(bazUsd)}${bazTop > 0 ? ` (%${pctFmt(payYuzde)} pay)` : ""}, kota hakkı %${pctFmt(hak)}`;
+      const havuzAlt = sgl === "gemini" && g.cHavuzUsd > 0 ? ` · Claude &amp; GPT ${money(g.cHavuzUsd)}` : "";
+      let ikincilSifirAna = "";
+      if (sgl === "gemini" && agyClaudePct !== null && (totalCHavuz > 0 || agyClaudePct > 0)) {
+        const cAllow = hak;
+        const cUsed = totalCHavuz > 0 ? agyClaudePct * (g.cHavuzUsd / totalCHavuz) : 0;
+        const cBar = cAllow > 0 ? Math.min(100, (cUsed / cAllow) * 100) : (cUsed > 0 ? 100 : 0);
+        const cOver = cAllow <= 0 ? cUsed > 0.005 : cUsed >= cAllow + tolerans - 0.005;
+        const tip = `Claude & GPT özel kotası: hakkı olan %${pctFmt(cAllow)} içinden %${pctFmt(cUsed)} (${money(g.cHavuzUsd)})`;
+        ikincilSifirAna = `<span class="fbar" role="img" aria-label="${esc(g.ad)}, ${esc(tip)}" title="${esc(tip)}"><i style="width:${cBar.toFixed(2)}%" class="agy-3p${cOver ? " over" : ""}"></i></span>
+          <span class="flab" aria-hidden="true">Claude &amp; GPT %${pctFmt(cUsed)} / %${pctFmt(cAllow)}${g.cHavuzUsd > 0 ? ` · ${money(g.cHavuzUsd)}` : ""}</span>`;
+      }
       return `<li class="lrow"><span class="ln">${esc(g.ad)}${alt}</span>
-        <span class="lmid"><span class="lbar" role="img" aria-label="${esc(aria)}"><i style="width:${payYuzde.toFixed(2)}%"></i></span></span>
-        <span class="lv"><b>${money(g.usd)}</b><small>${total > 0 ? `%${pctFmt(payYuzde)} pay · ` : ""}hakkı %${pctFmt(hak)}${havuzAlt}</small></span></li>`;
+        <span class="lmid"><span class="lbar" role="img" aria-label="${esc(aria)}"><i style="width:${payYuzde.toFixed(2)}%"></i></span>${ikincilSifirAna}</span>
+        <span class="lv"><b>${money(bazUsd)}</b><small>${bazTop > 0 ? `%${pctFmt(payYuzde)} pay · ` : ""}hakkı %${pctFmt(hak)}${havuzAlt}</small></span></li>`;
     }
-    const used = agyAyrikMod
-      ? (totalAgyGemini > 0 ? pct * (g.agyGeminiUsd / totalAgyGemini) : 0)
+    const used = sgl === "gemini"
+      ? (totalAgyGemini > 0 ? pct * (g.agyGeminiUsd / totalAgyGemini) : (L && L.elle && total > 0 ? pct * (g.usd / total) : 0))
       : (total ? pct * (g.usd / total) : 0);
     const bar = hak > 0 ? Math.min(100, (used / hak) * 100) : (used > 0 ? 100 : 0);
     const over = hak <= 0 ? used > 0.005 : used >= hak + tolerans - 0.005;
@@ -5969,24 +5883,25 @@ function limitPanel(d, perDev, gun = null) {
       const tip = `Fable: hakkı olan %${pctFmt(fAllow)} içinden %${pctFmt(fUsed)}`;
       ikincilCubuk = `<span class="fbar" role="img" aria-label="${esc(g.ad)}, ${esc(tip)}" title="${esc(tip)}"><i style="width:${fBar.toFixed(2)}%" class="${fOver ? "over" : ""}"></i></span>
         <span class="flab" aria-hidden="true">Fable %${pctFmt(fUsed)} / %${pctFmt(fAllow)}</span>`;
-    } else if (sgl === "gemini" && agyClaudePct !== null && (totalAgyClaude > 0 || agyClaudePct > 0)) {
+    } else if (sgl === "gemini" && agyClaudePct !== null && (totalCHavuz > 0 || agyClaudePct > 0)) {
       const cAllow = hak;
-      const cUsed = totalAgyClaude > 0 ? agyClaudePct * (g.agyClaudeUsd / totalAgyClaude) : 0;
+      const cUsed = totalCHavuz > 0 ? agyClaudePct * (g.cHavuzUsd / totalCHavuz) : 0;
       const cBar = cAllow > 0 ? Math.min(100, (cUsed / cAllow) * 100) : (cUsed > 0 ? 100 : 0);
       const cOver = cAllow <= 0 ? cUsed > 0.005 : cUsed >= cAllow + tolerans - 0.005;
-      const tip = `Antigravity Claude / GPT: hakkı olan %${pctFmt(cAllow)} içinden %${pctFmt(cUsed)} (${money(g.agyClaudeUsd)})`;
-      ikincilCubuk = `<span class="fbar" role="img" aria-label="${esc(g.ad)}, ${esc(tip)}" title="${esc(tip)}"><i style="width:${cBar.toFixed(2)}%" class="${cOver ? "over" : ""}"></i></span>
-        <span class="flab" aria-hidden="true">Claude/GPT %${pctFmt(cUsed)} / %${pctFmt(cAllow)}</span>`;
+      const tip = `Claude & GPT özel kotası: hakkı olan %${pctFmt(cAllow)} içinden %${pctFmt(cUsed)} (${money(g.cHavuzUsd)})`;
+      ikincilCubuk = `<span class="fbar" role="img" aria-label="${esc(g.ad)}, ${esc(tip)}" title="${esc(tip)}"><i style="width:${cBar.toFixed(2)}%" class="agy-3p${cOver ? " over" : ""}"></i></span>
+        <span class="flab" aria-hidden="true">Claude &amp; GPT %${pctFmt(cUsed)} / %${pctFmt(cAllow)}${g.cHavuzUsd > 0 ? ` · ${money(g.cHavuzUsd)}` : ""}</span>`;
     }
+    const anaDolarNotu = sgl === "gemini" && g.agyGeminiUsd > 0 ? ` · ${money(g.agyGeminiUsd)}` : "";
     return `<li class="lrow"><span class="ln">${esc(g.ad)}${alt}</span>
       <span class="lmid"><span class="lbar" role="img" aria-label="${esc(g.ad)}: hakkı olan %${pctFmt(hak)} içinden %${pctFmt(used)} kullandı"><i style="width:${bar.toFixed(2)}%" class="${over ? "over" : ""}"></i></span>${ikincilCubuk}</span>
-      <span class="lv"><b class="${over ? "bad" : ""}">%${pctFmt(used)}</b><small>hakkı %${pctFmt(hak)}</small></span></li>`;
+      <span class="lv"><b class="${over ? "bad" : ""}">%${pctFmt(used)}</b><small>hakkı %${pctFmt(hak)}${anaDolarNotu}</small></span></li>`;
   }).join("") : "";
   const bosNot = claudeMu
     ? "Henüz okunmadı. Yüzde, Claude masaüstü uygulaması açık olan bir bilgisayardan kendiliğinden gelir; dilersen aşağıdan doğrudan elle de girebilirsin."
     : sgl === "chatgpt"
       ? "Codex CLI oturum dosyalarında yerel oran bilgisi bulunduğunda otomatik okunur; dilersen haftalık kullanım yüzdesini aşağıdan elle de girebilirsin."
-      : "Antigravity (agy CLI durum satırı veya yerel veritabanı) bulunan bir bilgisayardan kota pencereleri otomatik okunur; dilersen haftalık yüzdeyi aşağıdan elle de girebilirsin.";
+      : "Antigravity yerel veritabanından Gemini modelleri ve Claude & GPT özel kota pencereleri otomatik okunur; dilersen haftalık yüzdeyi aşağıdan elle de girebilirsin.";
   const hsBilgi = d.haftaSifirlama && d.haftaSifirlama[sgl] ? d.haftaSifirlama[sgl] : null;
   const hsKaynakAd = hsBilgi
     ? (hsBilgi.kaynak === "otomatik_disk" ? "otomatik · diskten" : hsBilgi.kaynak === "otomatik_yedek" ? "otomatik · yedek" : "elle")
@@ -5998,16 +5913,16 @@ function limitPanel(d, perDev, gun = null) {
     : canliYedekPct !== null
       ? `%${pctFmt(canliYedekPct)} <small style="font-size:14px;font-weight:600;color:var(--ink-3)">(${canliYedekEtiket})</small>`
       : "Okunmadı";
-  const herhangiCanliKotaVar = pct !== null || canliYedekPct !== null || agyGeminiPct !== null || agyClaudePct !== null;
+  const herhangiCanliKotaVar = pct !== null || canliYedekPct !== null || agyClaudePct !== null;
   const metaEtiketler = [
     when ? `<span class="pill">${esc(when)}</span>` : "",
     gun === null && d.start === d.current && hsBilgi && hsBilgi.sonrakiReset
-      ? `<span class="pill" title="Haftalık limit penceresinin sıfırlanma zamanı">Sıfırlama: ${esc(gunAd(hsBilgi.sonrakiReset))} ${esc(hm(hsBilgi.sonrakiReset))} (${esc(hsKaynakAd)})</span>`
+      ? `<span class="pill" title="Haftalık ana limit penceresinin sıfırlanma zamanı">Sıfırlama: ${esc(gunAd(hsBilgi.sonrakiReset))} ${esc(hm(hsBilgi.sonrakiReset))} (${esc(hsKaynakAd)})</span>`
       : "",
     h5 !== null ? `<span class="pill pill-accent">5 saatlik pencere: %${pctFmt(h5)}${h5Reset ? ` (${esc(h5Reset)}'de sıfırlanır)` : ""}</span>` : "",
     m30Pct !== null ? `<span class="pill">30 günlük pencere: %${pctFmt(m30Pct)}</span>` : "",
-    agyGeminiPct !== null ? `<span class="pill">Gemini havuzu: %${pctFmt(agyGeminiPct)}</span>` : "",
-    agyClaudePct !== null ? `<span class="pill">Claude/3P havuzu: %${pctFmt(agyClaudePct)}</span>` : "",
+    agyClaudePct !== null ? `<span class="pill">Claude &amp; GPT özel kotası: %${pctFmt(agyClaudePct)}${agyClaudeReset ? ` (${esc(agyClaudeReset)}'de sıfırlanır)` : ""}</span>` : "",
+    agyClaude5Pct !== null ? `<span class="pill">Claude &amp; GPT 5s: %${pctFmt(agyClaude5Pct)}${agyClaude5Reset ? ` (${esc(agyClaude5Reset)})` : ""}</span>` : "",
     ozelPayMi ? `<span class="pill">Özel kota payı</span>` : "",
     claudeMu && gun === null && d.taban_t > 0 ? `<span class="pill">Taban: ${esc(dTime(d.taban_t))}</span>` : "",
   ].filter(Boolean).join("");
@@ -6029,7 +5944,7 @@ function limitPanel(d, perDev, gun = null) {
             <span class="fable-durum" role="status" aria-live="polite"></span>
           </form>` : `<button type="button" class="link-btn" data-fable-ac>+ Fable % gir</button>`}`
         : `<form class="fable-gir" method="POST" action="/api/yonetim/saglayici-yuzde" data-sgl-form data-sgl="${esc(sgl)}" aria-label="${esc(sb.ad)} haftalık yüzde düzeltme">
-            <label for="sgl-pct">Haftalık %</label>
+            <label for="sgl-pct">${sgl === "gemini" ? "Gemini %" : "Haftalık %"}</label>
             <input id="sgl-pct" name="pct" type="number" inputmode="decimal" min="0" max="100" step="0.1" required value="${guncelPct !== null ? guncelPct : ""}" placeholder="–">
             <button type="submit" aria-label="${esc(sb.ad)} yüzdesini kaydet">✓</button>
             ${L && L.elle ? `<button type="button" data-sgl-sil="${esc(sgl)}">Sıfırla</button>` : ""}
@@ -6038,14 +5953,16 @@ function limitPanel(d, perDev, gun = null) {
         <a class="fable-ayar-bag" href="${urlKur("/pano/ayarlar/limit")}" data-link>Gelişmiş müdahale →</a>
       </div>`
     : "";
+  const baslikMetin = sgl === "gemini"
+    ? `Gemini modelleri haftalık limit, ${gun === null ? "bu hafta" : `${esc(gunAdi)} sonuna kadar`}`
+    : `${esc(sb.ad)} limit kullanımı, ${gun === null ? "bu hafta" : `${esc(gunAdi)} sonuna kadar`}`;
   return `<section class="card limit-card" aria-labelledby="h-lim">
     <div class="lhead"><div>
-      <p class="muted" id="h-lim">${esc(sb.ad)} limit kullanımı, ${gun === null ? "bu hafta" : `${esc(gunAdi)} sonuna kadar`}</p>
+      <p class="muted" id="h-lim">${baslikMetin}</p>
       <p class="lbig">${baslikDeger}</p>
       ${metaEtiketler ? `<div class="lhead-meta">${metaEtiketler}</div>` : ""}
       </div>
       ${gun !== null ? `<button type="button" class="lgun-kaldir" data-gun-kaldir>Tüm hafta</button>` : ""}</div>
-    ${agyHavuzHtml}
     ${rows ? `<ul class="llist" role="list">${rows}</ul>` : ""}
     ${pct === null && gun !== null && !canli ? `<p class="note">${esc(gunAdi)} sonuna kadar limit okuması yok.</p>` : ""}
     ${!herhangiCanliKotaVar && (gun === null || canli) ? `<p class="note">${bosNot}</p>` : ""}
@@ -6055,125 +5972,6 @@ function limitPanel(d, perDev, gun = null) {
 }
 
 let fableFormAcik = false;
-
-// Sağlayıcıya özgü derin teknik telemetri şeridi (Claude önbellek & model ailesi, Codex muhakeme/pencere, Gemini CLI vs Antigravity)
-function saglayiciTelemetriKarti(d, total, byModel) {
-  const sgl = d.saglayici || "claude";
-  const L = d.limit || null;
-  const ham = L && L.ham ? L.ham : {};
-  if (total.tok <= 0 && !(sgl === "gemini" && (Number.isFinite(ham["agy_claude.used_percentage"]) || Number.isFinite(ham["agy_gemini.used_percentage"])))) {
-    return "";
-  }
-
-  // 1. Hücre: Bağlam Önbelleği (Prompt Cache) isabeti
-  const cachePayda = total.input + total.cw + total.cr;
-  const crPct = cachePayda > 0 ? (total.cr / cachePayda) * 100 : 0;
-  const cwPct = cachePayda > 0 ? (total.cw / cachePayda) * 100 : 0;
-  const inPct = Math.max(0, 100 - crPct - cwPct);
-  const cacheAltEtiket = sgl === "claude"
-    ? `<span><i class="tm-nokta" style="background:var(--ok)"></i>Okuma ${short(total.cr)}</span><span><i class="tm-nokta" style="background:var(--warn)"></i>5dk ${short(total.cw5m)} · 1sa ${short(total.cw1h)}</span><span><i class="tm-nokta" style="background:var(--ink-3)"></i>Taze ${short(total.input)}</span>`
-    : sgl === "chatgpt"
-      ? `<span><i class="tm-nokta" style="background:var(--ok)"></i>Cached input ${short(total.cr)}</span><span><i class="tm-nokta" style="background:var(--ink-3)"></i>Yeni girdi ${short(total.input)}</span>`
-      : `<span><i class="tm-nokta" style="background:var(--ok)"></i>Cached bağlam ${short(total.cr)}</span><span><i class="tm-nokta" style="background:var(--ink-3)"></i>Girdi ${short(total.input)}</span>`;
-
-  // 2. Hücre: Sağlayıcıya özel model / ekosistem kırılımı
-  let h2Baslik = "", h2Pill = "", h2Deger = "", h2Cubuk = "", h2Etiket = "";
-  const mEntries = [...byModel.entries()];
-  const payYuzde = (u) => (total.usd > 0 ? Math.max(0, (u / total.usd) * 100) : 0);
-
-  if (sgl === "claude") {
-    let opusU = 0, sonnetU = 0, haikuU = 0;
-    for (const [m, s] of mEntries) {
-      if (/opus|fable/i.test(m)) opusU += s.usd;
-      else if (/sonnet/i.test(m)) sonnetU += s.usd;
-      else haikuU += s.usd;
-    }
-    const pO = payYuzde(opusU), pS = payYuzde(sonnetU), pH = payYuzde(haikuU);
-    const baskin = opusU >= sonnetU && opusU >= haikuU ? `Opus %${Math.round(pO)}` : sonnetU >= haikuU ? `Sonnet %${Math.round(pS)}` : `Haiku %${Math.round(pH)}`;
-    h2Baslik = "Claude Model Dağılımı";
-    h2Pill = `${mEntries.length} model`;
-    h2Deger = `${esc(baskin)} <small>ağırlıklı mimari</small>`;
-    h2Cubuk = `${pO > 0 ? `<i style="flex:${pO.toFixed(2)};background:#c25927"></i>` : ""}${pS > 0 ? `<i style="flex:${pS.toFixed(2)};background:#e09453"></i>` : ""}${pH > 0 ? `<i style="flex:${pH.toFixed(2)};background:#64748b"></i>` : ""}`;
-    h2Etiket = `<span><i class="tm-nokta" style="background:#c25927"></i>Opus ${money(opusU)}</span><span><i class="tm-nokta" style="background:#e09453"></i>Sonnet ${money(sonnetU)}</span>${haikuU > 0 ? `<span><i class="tm-nokta" style="background:#64748b"></i>Haiku ${money(haikuU)}</span>` : ""}`;
-  } else if (sgl === "chatgpt") {
-    let codexU = 0, gptU = 0, oSeriU = 0;
-    for (const [m, s] of mEntries) {
-      if (/codex/i.test(m)) codexU += s.usd;
-      else if (/(^openai-|-)(o1|o3|o4)/i.test(m)) oSeriU += s.usd;
-      else gptU += s.usd;
-    }
-    const pC = payYuzde(codexU), pG = payYuzde(gptU), pO = payYuzde(oSeriU);
-    const baskin = codexU >= gptU && codexU >= oSeriU ? `Codex %${Math.round(pC)}` : gptU >= oSeriU ? `GPT-5 %${Math.round(pG)}` : `o-Serisi %${Math.round(pO)}`;
-    h2Baslik = "Codex & Muhakeme Kırılımı";
-    h2Pill = `Çıktı ${short(total.output)}`;
-    h2Deger = `${esc(baskin)} <small>reasoning dahil</small>`;
-    h2Cubuk = `${pC > 0 ? `<i style="flex:${pC.toFixed(2)};background:#10a37f"></i>` : ""}${pG > 0 ? `<i style="flex:${pG.toFixed(2)};background:#0ea5e9"></i>` : ""}${pO > 0 ? `<i style="flex:${pO.toFixed(2)};background:#f59e0b"></i>` : ""}`;
-    h2Etiket = `<span><i class="tm-nokta" style="background:#10a37f"></i>Codex ${money(codexU)}</span>${gptU > 0 ? `<span><i class="tm-nokta" style="background:#0ea5e9"></i>GPT ${money(gptU)}</span>` : ""}${oSeriU > 0 ? `<span><i class="tm-nokta" style="background:#f59e0b"></i>o-Serisi ${money(oSeriU)}</span>` : ""}`;
-  } else {
-    let agyU = 0, agyTok = 0, cliU = 0, cliTok = 0;
-    for (const [m, s] of mEntries) {
-      if (String(m).startsWith("agy-")) { agyU += s.usd; agyTok += s.tok; }
-      else { cliU += s.usd; cliTok += s.tok; }
-    }
-    const pA = payYuzde(agyU), pC = payYuzde(cliU);
-    h2Baslik = "Antigravity IDE vs Gemini CLI";
-    h2Pill = agyTok > 0 && cliTok > 0 ? "Hibrit kullanım" : agyTok > 0 ? "Antigravity" : "Gemini CLI";
-    h2Deger = agyU >= cliU
-      ? `%${Math.round(pA)} Antigravity <small>${money(agyU)}</small>`
-      : `%${Math.round(pC)} Gemini CLI <small>${money(cliU)}</small>`;
-    h2Cubuk = `${pA > 0 ? `<i style="flex:${pA.toFixed(2)};background:#8b5cf6"></i>` : ""}${pC > 0 ? `<i style="flex:${pC.toFixed(2)};background:#3b82f6"></i>` : ""}`;
-    h2Etiket = `<span><i class="tm-nokta" style="background:#8b5cf6"></i>Antigravity ${money(agyU)} (${short(agyTok)})</span><span><i class="tm-nokta" style="background:#3b82f6"></i>Gemini CLI ${money(cliU)} (${short(cliTok)})</span>`;
-  }
-
-  // 3. Hücre: Aktif kota pencereleri & diskten sıfırlama zamanı
-  const hs = d.haftaSifirlama && d.haftaSifirlama[sgl] ? d.haftaSifirlama[sgl] : null;
-  const resetYazi = hs && hs.sonrakiReset ? `${gunAd(hs.sonrakiReset)} ${hm(hs.sonrakiReset)}` : "Pazartesi 00:00";
-  const kaynakKisa = hs && hs.kaynak === "otomatik_disk" ? "Diskten otomatik" : hs && hs.kaynak === "elle" ? "Elle ayarlı" : "Takvim";
-  let h3Baslik = "Kota Penceresi & Sıfırlama", h3Deger = "", h3Cubuk = "", h3Etiket = "";
-
-  if (sgl === "gemini" && (Number.isFinite(ham["agy_claude.used_percentage"]) || Number.isFinite(ham["agy_gemini.used_percentage"]))) {
-    const ac = Number.isFinite(ham["agy_claude.used_percentage"]) ? ham["agy_claude.used_percentage"] : 0;
-    const ag = Number.isFinite(ham["agy_gemini.used_percentage"]) ? ham["agy_gemini.used_percentage"] : 0;
-    const g5 = Number.isFinite(ham["agy_gemini_5h.used_percentage"]) && (!Number.isFinite(ham["agy_gemini_5h.resets_at"]) || ham["agy_gemini_5h.resets_at"] > d.now) ? ham["agy_gemini_5h.used_percentage"] : null;
-    h3Baslik = "Antigravity Çift Havuz Durumu";
-    h3Deger = `Gemini %${pctFmt(ag)} <small>· Claude/3P %${pctFmt(ac)}</small>`;
-    h3Cubuk = `<i style="flex:${Math.max(4, ag).toFixed(1)};background:#3b82f6"></i><i style="flex:${Math.max(4, ac).toFixed(1)};background:#8b5cf6"></i><i style="flex:${Math.max(2, 200 - ac - ag).toFixed(1)};background:transparent"></i>`;
-    h3Etiket = `<span><i class="tm-nokta" style="background:#3b82f6"></i>Gemini${g5 !== null ? ` (5s %${pctFmt(g5)})` : ""}</span><span><i class="tm-nokta" style="background:#8b5cf6"></i>Claude/3P</span><span>Sıfırlama: ${esc(resetYazi)}</span>`;
-  } else {
-    const h5 = L && L.h !== null && L.h !== undefined && L.hr > d.now ? L.h : null;
-    const w7 = L && L.pct !== null && L.pct !== undefined ? L.pct : null;
-    const m30 = Number.isFinite(ham["thirty_day.used_percentage"]) ? ham["thirty_day.used_percentage"] : (Number.isFinite(ham["chatgpt_30d.used_percentage"]) ? ham["chatgpt_30d.used_percentage"] : null);
-    h3Deger = w7 !== null ? `%${pctFmt(w7)} <small>haftalık pencere</small>` : m30 !== null ? `%${pctFmt(m30)} <small>30 günlük pencere</small>` : `${esc(resetYazi)} <small>sıfırlama</small>`;
-    const doluluk = w7 !== null ? Math.min(100, Math.max(2, w7)) : m30 !== null ? Math.min(100, Math.max(2, m30)) : 0;
-    h3Cubuk = `<i style="width:${doluluk.toFixed(1)}%;background:var(--accent)"></i>`;
-    h3Etiket = [
-      h5 !== null ? `<span><i class="tm-nokta" style="background:var(--accent)"></i>5s: %${pctFmt(h5)}</span>` : "",
-      m30 !== null ? `<span>30g: %${pctFmt(m30)}</span>` : "",
-      `<span>Sıfırlama: ${esc(resetYazi)}</span>`,
-    ].filter(Boolean).join("");
-  }
-
-  return `<section class="telemetri-kart" aria-label="${esc(saglayiciBilgi(sgl).ad)} teknik telemetri özeti">
-    <div class="tm-hucre">
-      <div class="tm-ust"><span>Bağlam Önbelleği (Prompt Cache)</span><span class="pill ${crPct >= 50 ? "pill-ok" : ""}">%${pctFmt(crPct)} isabet</span></div>
-      <div class="tm-deger">${short(total.cr)} <small>/ ${short(cachePayda)} bağlam token'ı</small></div>
-      <div class="tm-cubuk" aria-hidden="true">${crPct > 0 ? `<i style="flex:${crPct.toFixed(2)};background:var(--ok)"></i>` : ""}${cwPct > 0 ? `<i style="flex:${cwPct.toFixed(2)};background:var(--warn)"></i>` : ""}${inPct > 0 ? `<i style="flex:${inPct.toFixed(2)};background:var(--line-strong)"></i>` : ""}</div>
-      <div class="tm-etiketler">${cacheAltEtiket}</div>
-    </div>
-    <div class="tm-hucre">
-      <div class="tm-ust"><span>${esc(h2Baslik)}</span><span class="pill">${esc(h2Pill)}</span></div>
-      <div class="tm-deger">${h2Deger}</div>
-      <div class="tm-cubuk" aria-hidden="true">${h2Cubuk || `<i style="width:100%;background:var(--surface-3)"></i>`}</div>
-      <div class="tm-etiketler">${h2Etiket}</div>
-    </div>
-    <div class="tm-hucre">
-      <div class="tm-ust"><span>${esc(h3Baslik)}</span><span class="pill">${esc(kaynakKisa)}</span></div>
-      <div class="tm-deger">${h3Deger}</div>
-      <div class="tm-cubuk" aria-hidden="true">${h3Cubuk}</div>
-      <div class="tm-etiketler">${h3Etiket}</div>
-    </div>
-  </section>`;
-}
 
 // ---------------- hafta sayfası ----------------
 async function pageWeek(silent = false) {
@@ -6185,11 +5983,16 @@ async function pageWeek(silent = false) {
   const perDev = new Map(d.devices.map((x) => [x.id, sumZero()]));
   const byModel = new Map();
   const total = sumZero();
+  let geminiAnaUsd = 0, gemini3pUsd = 0;
   for (const r of d.usage) {
     if (!perDev.has(r.device_id)) continue;
     add(perDev.get(r.device_id), r); add(total, r);
     if (!byModel.has(r.model)) byModel.set(r.model, sumZero());
     add(byModel.get(r.model), r);
+    if (sgl === "gemini") {
+      if (agyClaudeHavuzuMu(r.model)) gemini3pUsd += r.usd;
+      else geminiAnaUsd += r.usd;
+    }
   }
   const liveSet = liveSetOf(d);
   const devs = [...d.devices].sort((a, b) => perDev.get(b.id).usd - perDev.get(a.id).usd);
@@ -6206,16 +6009,21 @@ async function pageWeek(silent = false) {
   const kilitAktif = !(d.ayar && d.ayar.hesapKilitAktif && d.ayar.hesapKilitAktif[sgl] === false);
   const kilit = kilitAktif && d.hesapKilit && d.hesapKilit[sgl];
   const engelliSayi = kilitAktif ? d.devices.filter((x) => flagsOf(x).some((f) => f.k === "farkli_hesap_" + sgl)).length : 0;
+  const harcamaAlt = !models.length
+    ? `Bu hafta ${esc(sb.ad)} verisi yok`
+    : (sgl === "gemini"
+      ? `Gemini ${money(geminiAnaUsd)}${gemini3pUsd > 0 ? ` · Claude &amp; GPT ${money(gemini3pUsd)}` : ""} · ${models.length} model`
+      : `${models.length} aktif model`);
   const kpiHtml = `<div class="kpi-grid">
     <div class="kpi">
       <div class="kpi-etiket"><span>Haftalık harcama</span><span class="pill pill-accent">${esc(sb.apiAd)}</span></div>
       <div class="kpi-deger">${money(total.usd)}</div>
-      <div class="kpi-alt">${models.length ? `${models.length} farklı model kullanıldı` : `Bu hafta ${esc(sb.ad)} verisi yok`}</div>
+      <div class="kpi-alt">${harcamaAlt}</div>
     </div>
     <div class="kpi">
       <div class="kpi-etiket"><span>Toplam token</span><span class="pill">${nf.format(d.devices.length)} bilgisayar</span></div>
       <div class="kpi-deger">${short(total.tok)}</div>
-      <div class="kpi-alt">Girdi ${short(total.input)} · Çıktı ${short(total.output)}</div>
+      <div class="kpi-alt">Girdi ${short(total.input)} · Çıktı ${short(total.output)}${total.cr > 0 ? ` · Önbellek ${short(total.cr)}` : ""}</div>
     </div>
     <div class="kpi">
       <div class="kpi-etiket"><span>En yoğun kullanım</span><span class="pill ${liveSet.size ? "pill-ok" : ""}">${liveSet.size} ekran açık</span></div>
@@ -6244,30 +6052,32 @@ async function pageWeek(silent = false) {
       ? officeScene(d, groups, perDev, liveSet, maxUsd, payAsanlar(d, groups))
       : `<div class="card" style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px"><span class="muted">Canlı ofis simülasyonu ayarlardan gizlendi.</span><a class="btn btn-plain btn-sm" href="${urlKur("/pano/ayarlar/ofis")}" data-link>Ofis ayarlarını aç</a></div>`;
   const gunBasSaat = hm(d.start);
+  const apiNotu = sgl === "gemini"
+    ? "API karşılığı, her modelin kendi resmi API liste fiyatıyla (Google Gemini, Antigravity içindeki Claude ve GPT modelleri dahil) ne tutacağını gösterir. Gemini ana haftalık kotasına yalnızca Gemini modelleri etki eder; Claude ve GPT modelleri ayrı özel kotadan düşer."
+    : `API karşılığı, aynı token'ların resmi ${esc(sb.apiAd)} liste fiyatıyla ne tutacağını gösterir. Abonelik limitinin iç formülü açıklanmadığından bilgisayarları karşılaştırmak için en tutarlı ölçü budur.`;
 
   shell("hafta", `
     ${weekHeader(d, title, "/pano")}
     ${kpiHtml}
-    ${saglayiciTelemetriKarti(d, total, byModel)}
     ${bosSaglayiciBilgi}
     <div id="limwrap">${limitPanel(d, perDev, haftaGun(d))}</div>
     ${ofisBolumu}
-    <section class="card" aria-labelledby="h-gun">
+    <section class="card veri-kart" aria-labelledby="h-gun">
       <div class="card-head"><h2 id="h-gun">Günlük dağılım</h2></div>
       <p class="card-sub">Her gün ${gunBasSaat}'da başlar, ertesi gün ${gunBasSaat}'da biter. Bir güne basınca üstteki limit kartı o günün sonuna kadarki yüzdeyi ve kişilerin payını gösterir.</p>
       <div id="gunwrap">${dayBars(d, d.usage, haftaGun(d))}</div>
     </section>
-    <section class="card" aria-labelledby="h-tur">
+    <section class="card veri-kart" aria-labelledby="h-tur">
       <div class="card-head"><h2 id="h-tur">Bilgisayarlara göre</h2><span class="pill">${esc(sb.ad)}</span></div>
       <div class="table-wrap" tabindex="0" role="region" aria-labelledby="h-tur"><table>${head("Bilgisayar")}
         <tbody>${devs.map((x) => row(`<a href="/pano/bilgisayar/${x.id}${location.search}" data-link>${esc(x.label)}</a>${uyeAdi(d, x) && uyeAdi(d, x) !== x.label ? `<small class="muted"> · ${esc(uyeAdi(d, x))}</small>` : ""}`, perDev.get(x.id), maxDevUsd)).join("") || `<tr><td colspan="7" class="empty">Henüz bağlı bilgisayar yok.</td></tr>`}</tbody>
         <tfoot>${row("Toplam", total)}</tfoot></table></div>
     </section>
-    <section class="card" aria-labelledby="h-mod">
+    <section class="card veri-kart" aria-labelledby="h-mod">
       <div class="card-head"><h2 id="h-mod">Modellere göre</h2><span class="pill">${esc(sb.apiAd)}</span></div>
       <div class="table-wrap" tabindex="0" role="region" aria-labelledby="h-mod"><table>${head("Model")}
-        <tbody>${models.map(([m, s]) => row(`<span class="model-etiket">${esc(modelKisaAd(m))}</span>`, s, maxModUsd)).join("") || `<tr><td colspan="7" class="empty">Bu haftada ${esc(sb.ad)} verisi yok.</td></tr>`}</tbody></table></div>
-      <p class="note">API karşılığı, aynı token'ların resmi ${esc(sb.apiAd)} liste fiyatıyla ne tutacağını gösterir. Abonelik limitinin iç formülü açıklanmadığından bilgisayarları karşılaştırmak için en tutarlı ölçü budur.</p>
+        <tbody>${models.map(([m, s]) => row(`<span class="model-etiket">${esc(modelKisaAd(m))}</span>${sgl === "gemini" && agyClaudeHavuzuMu(m) ? ` <span class="pill" style="margin-inline-start:6px">Claude &amp; GPT kotası</span>` : ""}`, s, maxModUsd)).join("") || `<tr><td colspan="7" class="empty">Bu haftada ${esc(sb.ad)} verisi yok.</td></tr>`}</tbody></table></div>
+      <p class="note">${apiNotu}</p>
     </section>`, { authed: true });
   wireDesks();
   wireGunler(d, perDev);
@@ -7172,17 +6982,33 @@ function degisimNoktalari(seri) {
   return out;
 }
 
-const OLCUTLER = [
-  { k: "usd", ad: "API karşılığı, tüm modeller", usd: true },
-  { k: "usd_fablesiz", ad: "API karşılığı, Fable hariç", usd: true, sgl: "claude" },
-  { k: "tok", ad: "Toplam token", usd: false },
-];
+function olcutlerOf(sgl) {
+  if (sgl === "gemini") {
+    return [
+      { k: "usd_fablesiz", ad: "API karşılığı, Gemini modelleri (Claude & GPT hariç)", usd: true },
+      { k: "tok_ana", ad: "Gemini modelleri token (Claude & GPT hariç)", usd: false },
+      { k: "usd", ad: "API karşılığı, tüm modeller (Claude & GPT dahil)", usd: true },
+    ];
+  }
+  if (sgl === "claude") {
+    return [
+      { k: "usd", ad: "API karşılığı, tüm modeller", usd: true },
+      { k: "usd_fablesiz", ad: "API karşılığı, Fable hariç", usd: true },
+      { k: "tok", ad: "Toplam token", usd: false },
+    ];
+  }
+  return [
+    { k: "usd", ad: "API karşılığı, tüm modeller", usd: true },
+    { k: "tok", ad: "Toplam token", usd: false },
+  ];
+}
 const EN_AZ_DEGER = 3; // doğru uydurmak için gereken farklı yüzde sayısı
 
 // Tüm analiz: noktalar, ölçütler için doğru, en iyi uyum ve ardışık değişimler arası aralıklar.
 function limitAnaliz(d) {
   const sgl = d.saglayici || "claude";
-  const aktifOlcutler = OLCUTLER.filter((m) => !m.sgl || m.sgl === sgl);
+  const aktifOlcutler = olcutlerOf(sgl);
+  const anaAnahtar = aktifOlcutler[0].k;
   const pts = degisimNoktalari(d.seri || []).map((p) => {
     const o = { t: p.t, pct: p.pct };
     for (const m of aktifOlcutler) o[m.k] = birikimli(d.saatlik, p.t, m.k);
@@ -7196,11 +7022,11 @@ function limitAnaliz(d) {
   const usdFit = olcutler[0].gecerli ? olcutler[0].fit : null;
   const araliklar = [];
   for (let i = 1; i < pts.length; i++) {
-    const a = pts[i - 1], b = pts[i], dp = b.pct - a.pct, usd = b.usd - a.usd;
+    const a = pts[i - 1], b = pts[i], dp = b.pct - a.pct, usd = b[anaAnahtar] - a[anaAnahtar];
     const beklenen = usdFit ? dp / usdFit.b : null; // doğruya göre bu yükselişin "olması gereken" harcaması
     araliklar.push({ bas: a.t, son: b.t, dp, usd, basina: dp > 0 ? usd / dp : null, beklenen, sapma: beklenen === null ? null : usd - beklenen });
   }
-  return { pts, farkli, yeterli, olcutler, iyi, usdFit, araliklar, okuma: (d.ham || []).length };
+  return { pts, farkli, yeterli, olcutler, iyi, usdFit, araliklar, anaAnahtar, okuma: (d.ham || []).length };
 }
 
 const isaretli = (v) => (v < 0 ? "−" : "+") + money(Math.abs(v));
@@ -7209,15 +7035,16 @@ const birimYaz = (m, v) => (m.usd ? money(v) : short(v) + " token");
 // Zaman grafiği: x = hafta başından şimdiye zaman, y = limit yüzdesi. İki çizgi, tek eksen:
 // gerçek limit (okumalardan basamaklı) ve harcamadan beklenen (a + b × birikmiş API karşılığı, saatlik).
 function zamanSeri(A, d) {
+  const anaK = A.anaAnahtar || "usd";
   const t0 = d.start, t1 = Math.max(t0 + 3600, Math.min(d.now, d.end));
   const pts = A.pts, ilk = pts.length ? pts[0].t : null;
   const gercek = (t) => { let v = null; for (const p of pts) { if (p.t <= t) v = p.pct; else break; } return v; };
   let beklenen = null, yaklasik = false;
   const fit = A.usdFit;
-  if (fit) beklenen = (t) => Math.max(0, fit.a + fit.b * birikimli(d.saatlik, t, "usd"));
+  if (fit) beklenen = (t) => Math.max(0, fit.a + fit.b * birikimli(d.saatlik, t, anaK));
   else if (pts.length) {
-    const son = pts[pts.length - 1], c = birikimli(d.saatlik, son.t, "usd");
-    if (c > 0) { yaklasik = true; beklenen = (t) => (son.pct * birikimli(d.saatlik, t, "usd")) / c; }
+    const son = pts[pts.length - 1], c = birikimli(d.saatlik, son.t, anaK);
+    if (c > 0) { yaklasik = true; beklenen = (t) => (son.pct * birikimli(d.saatlik, t, anaK)) / c; }
   }
   const saat = [];
   for (let t = t0; t < t1; t += 3600) saat.push(t);
@@ -7318,12 +7145,14 @@ function limitRender(d) {
   const sb = saglayiciBilgi(sgl);
   const A = limitAnaliz(d);
   const L = d.etkin;
-  const cum = L ? birikimli(d.saatlik, Math.min(d.now, d.end), "usd") : 0;
+  const anaK = A.anaAnahtar || "usd";
+  const cum = L ? birikimli(d.saatlik, Math.min(d.now, d.end), anaK) : 0;
+  const anaModelAciklama = sgl === "gemini" ? "Gemini modelleri (Claude & GPT özel kotası hariç)" : "tüm modeller";
   let baslik, ozet;
   if (A.yeterli && A.iyi && A.usdFit) {
     baslik = `%1 limit ≈ ${money(1 / A.usdFit.b)}`;
     ozet = `Uyum R² ${pctFmt(A.usdFit.r2)}, ${A.usdFit.n} okumaya dayanıyor. `
-      + `Bu hafta limit %${pctFmt(L.pct)}, harcama ${money(cum)} ${esc(sb.apiAd)} karşılığı. `
+      + `Bu hafta ${sgl === "gemini" ? "Gemini modelleri limiti" : "limit"} %${pctFmt(L.pct)}, harcama ${money(cum)} ${esc(sb.apiAd)} karşılığı (${anaModelAciklama}). `
       + `Yüzdenin yükselişi en çok <b>${esc(A.iyi.ad)}</b> ölçüsüyle uyumlu (R² ${pctFmt(A.iyi.fit.r2)}).`;
   } else if (A.yeterli) {
     baslik = "Okumalar harcamayla uyuşmuyor";
@@ -7334,7 +7163,7 @@ function limitRender(d) {
   }
   const S0 = A.pts.length ? zamanSeri(A, d) : null;
   const not = !S0 ? "" : S0.beklenen
-    ? `Çizgilerin ayrıştığı yerde limit, bu bilgisayarlardaki harcamayla eşleşmeden yükselmiş (ya da tersi) demektir.${S0.yaklasik ? " Beklenen çizgi yaklaşık ölçekle çizildi: en son okumadaki yüzde ile o ana kadarki harcama oranlanır, doğru uydurmak için okuma henüz az." : " Beklenen çizgi, okumalara uydurulan doğrudan (tüm modeller, API karşılığı) saat saat hesaplanır."}`
+    ? `Çizgilerin ayrıştığı yerde limit, bu bilgisayarlardaki harcamayla eşleşmeden yükselmiş (ya da tersi) demektir.${S0.yaklasik ? " Beklenen çizgi yaklaşık ölçekle çizildi: en son okumadaki yüzde ile o ana kadarki harcama oranlanır, doğru uydurmak için okuma henüz az." : ` Beklenen çizgi, okumalara uydurulan doğrudan (${anaModelAciklama}, API karşılığı) saat saat hesaplanır.`}`
     : "Beklenen çizgi için henüz harcama verisi yok.";
   const grafik = A.pts.length
     ? `<section class="card" aria-labelledby="h-lg"><h2 id="h-lg">Limit ve harcama</h2>
@@ -7342,16 +7171,16 @@ function limitRender(d) {
         <div class="chart" id="lg"></div><p class="visually-hidden" id="lgsr" aria-live="polite"></p>
         <p class="note">${not}</p></section>`
     : `<section class="card" aria-labelledby="h-lg"><h2 id="h-lg">Limit ve harcama</h2><p class="empty">Bu hafta için ${esc(sb.ad)} limit okuma kaydı yok.</p></section>`;
-  const kars = A.yeterli ? `<section class="card" aria-labelledby="h-ol"><h2 id="h-ol">Ölçü karşılaştırması</h2>
+  const kars = A.yeterli ? `<section class="card veri-kart" aria-labelledby="h-ol"><h2 id="h-ol">Ölçü karşılaştırması</h2>
       <div class="table-wrap" tabindex="0" role="region" aria-labelledby="h-ol"><table><thead><tr><th scope="col">Ölçü</th><th scope="col">%1 başına</th><th scope="col">Uyum (R²)</th><th scope="col">Nokta</th></tr></thead>
-      <tbody>${A.olcutler.map((m) => `<tr${A.iyi === m ? ' class="best"' : ""}><td>${m.ad}</td><td>${m.gecerli ? birimYaz(m, 1 / m.fit.b) : "—"}</td><td>${m.fit ? pctFmt(m.fit.r2) : "—"}</td><td>${m.fit ? m.fit.n : A.pts.length}</td></tr>`).join("")}</tbody></table></div>
+      <tbody>${A.olcutler.map((m) => `<tr${A.iyi === m ? ' class="best"' : ""}><td>${esc(m.ad)}</td><td>${m.gecerli ? birimYaz(m, 1 / m.fit.b) : "—"}</td><td>${m.fit ? pctFmt(m.fit.r2) : "—"}</td><td>${m.fit ? m.fit.n : A.pts.length}</td></tr>`).join("")}</tbody></table></div>
       <p class="note">Her ölçü için limit yüzdesi, birikmiş kullanıma karşı doğrusal olarak uydurulur. R² 1'e yaklaştıkça yüzde o ölçüyle daha düzgün yükseliyor demektir.</p></section>` : "";
-  const aral = A.araliklar.length ? `<section class="card" aria-labelledby="h-ar"><h2 id="h-ar">Yüzde değişimleri arası</h2>
+  const aral = A.araliklar.length ? `<section class="card veri-kart" aria-labelledby="h-ar"><h2 id="h-ar">Yüzde değişimleri arası</h2>
       <div class="table-wrap" tabindex="0" role="region" aria-labelledby="h-ar"><table><thead><tr><th scope="col">Aralık</th><th scope="col">Değişim</th><th scope="col">Harcanan</th><th scope="col">%1 başına</th>${A.usdFit ? '<th scope="col">Beklenen</th><th scope="col">Sapma</th>' : ""}</tr></thead>
       <tbody>${A.araliklar.map((r) => `<tr><td>${dTime(r.bas)} – ${dTime(r.son)}</td><td>+%${pctFmt(r.dp)}</td><td>${money(r.usd)}</td><td>${r.basina === null ? "—" : money(r.basina)}</td>${A.usdFit ? `<td>${money(r.beklenen)}</td><td>${isaretli(r.sapma)}</td>` : ""}</tr>`).join("")}</tbody></table></div>
-      <p class="note">Tutarlar ${esc(sb.apiAd)} karşılığı, tüm modeller. ${A.usdFit ? "Eksi sapma, limitin bu bilgisayarlardaki harcamanın açıkladığından fazla yükseldiği anlamına gelir; başka yerde kullanım olabilir." : "Doğru uydurulunca beklenen tutar ve sapma da görünür."}</p></section>` : "";
+      <p class="note">Tutarlar ${esc(sb.apiAd)} karşılığı, ${anaModelAciklama}. ${A.usdFit ? "Eksi sapma, limitin bu bilgisayarlardaki harcamanın açıkladığından fazla yükseldiği anlamına gelir; başka yerde kullanım olabilir." : "Doğru uydurulunca beklenen tutar ve sapma da görünür."}</p></section>` : "";
   const ham = (d.ham || []).slice(0, 50);
-  const hamT = !ham.length ? "" : `<section class="card" aria-labelledby="h-hm"><h2 id="h-hm">Son okumalar</h2>${ham.length
+  const hamT = !ham.length ? "" : `<section class="card veri-kart" aria-labelledby="h-hm"><h2 id="h-hm">Son okumalar</h2>${ham.length
     ? `<div class="table-wrap" tabindex="0" role="region" aria-labelledby="h-hm"><table><thead><tr><th scope="col">Zaman</th><th scope="col">Bilgisayar</th><th scope="col">Haftalık</th></tr></thead>
       <tbody>${ham.map((r) => `<tr><td>${dTime(r.t)}</td><td>${esc(r.device)}</td><td>%${pctFmt(r.w_pct)}${r.eski ? ' <small class="muted">sayılmadı</small>' : ""}</td></tr>`).join("")}</tbody></table></div>
       <p class="note">Bilgisayarlar aynı ortak hesabı okur. Boştaki bir oturum eski yüzdesini yeniden gönderebilir; panel her pencerenin en yüksek değerini esas alır${d.taban_t ? `, ${dTime(d.taban_t)} öncesindeki okumaları saymaz` : ""}.</p>`
@@ -7552,7 +7381,7 @@ async function pageSettings(bolum = "genel") {
                 const oSaat = Number.isInteger(oAyar.haftaSaat) ? oAyar.haftaSaat : (Number.isInteger(ayar.haftaSaat) ? ayar.haftaSaat : 9);
                 const hs = hsPaket[p.id] || null;
                 const rz = hsKaynakRozet(hs);
-                return `<div class="ayar-kutu-grup" style="margin:0;background:var(--surface)">
+                return `<div style="padding:10px 0;border-top:1px solid var(--line)">
                   <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px">
                     <b style="display:inline-flex;align-items:center;gap:6px;font-size:14.5px">${ICON[p.id]} ${esc(p.ad)}</b>
                     <span class="${rz.sinif}" data-hs-rozet="${p.id}">${esc(rz.metin)}</span>
@@ -7617,7 +7446,7 @@ async function pageSettings(bolum = "genel") {
       try {
         const r = await api(zorla ? "/api/sistem-guncelleme?zorla=1" : "/api/sistem-guncelleme");
         if (!$("#sis-surum-rozet")) return;
-        const mSurum = Number(r && r.mevcut_surum) || 40;
+        const mSurum = Number(r && r.mevcut_surum) || 41;
         const sSurum = Number(r && r.son_surum) || mSurum;
         const guvenliUrl = r && typeof r.indir_url === "string" && r.indir_url.startsWith("https://") ? r.indir_url : `${GITHUB_URL}/releases`;
         if (r && r.guncel === false && sSurum > mSurum) {
@@ -7634,7 +7463,7 @@ async function pageSettings(bolum = "genel") {
       } catch {
         if ($("#sis-surum-rozet")) {
           rz.className = "pill";
-          rz.textContent = "v40";
+          rz.textContent = "v41";
           dt.textContent = "GitHub sürüm bilgisi şu an sorgulanamadı.";
         }
       }

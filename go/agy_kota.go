@@ -135,14 +135,15 @@ func agyStatusCoz(girdi []byte, simdi int64) (agyLimitDosyasi, bool) {
 		}
 
 		geminiHavuzu := strings.Contains(k, "gemini")
-		ucpHavuzu := strings.Contains(k, "3p") || strings.Contains(k, "claude") || strings.Contains(k, "third") || strings.Contains(k, "gpt")
+		ucpHavuzu := strings.Contains(k, "3p") || strings.Contains(k, "claude") || strings.Contains(k, "third") ||
+			strings.Contains(k, "gpt") || strings.Contains(k, "openai")
 
 		if haftalikMi && (simdi <= 0 || simdi-resetSn <= 14*86400) {
 			if geminiHavuzu {
 				if resetSn > gecmisGemWReset {
 					gecmisGemWReset = resetSn
 				}
-			} else if resetSn > gecmisGenelWReset {
+			} else if !ucpHavuzu && resetSn > gecmisGenelWReset {
 				gecmisGenelWReset = resetSn
 			}
 		}
@@ -198,15 +199,11 @@ func agyStatusCoz(girdi []byte, simdi int64) (agyLimitDosyasi, bool) {
 		}
 	}
 
-	// Ana Gemini ofisi haftalık kotası ve haftalık sıfırlama saati: öncelikle gemini-weekly havuzu!
-	// Yalnızca Gemini haftalık havuzu hiç yoksa genel haftalık veya 3P haftalık havuza düşülür.
+	// Ana Gemini ofisi haftalık kotası ve haftalık sıfırlama saati: YALNIZCA Gemini / genel havuz!
+	// Claude ve GPT (3P) havuzu ayrı özel limittir (Claude'daki Fable gibi); Gemini haftalık kotasına veya sıfırlama gününe asla düşmez.
 	anaW := gemW
-	if !anaW.varMi {
-		if genelW.varMi {
-			anaW = genelW
-		} else {
-			anaW = ucpW
-		}
+	if !anaW.varMi && genelW.varMi {
+		anaW = genelW
 	}
 	if anaW.varMi {
 		cikti.R["seven_day.used_percentage"] = strconv.FormatFloat(anaW.pct, 'f', -1, 64)
@@ -219,12 +216,8 @@ func agyStatusCoz(girdi []byte, simdi int64) (agyLimitDosyasi, bool) {
 	}
 
 	ana5 := gem5
-	if !ana5.varMi {
-		if genel5.varMi {
-			ana5 = genel5
-		} else {
-			ana5 = ucp5
-		}
+	if !ana5.varMi && genel5.varMi {
+		ana5 = genel5
 	}
 	if ana5.varMi {
 		cikti.R["five_hour.used_percentage"] = strconv.FormatFloat(ana5.pct, 'f', -1, 64)
@@ -234,9 +227,6 @@ func agyStatusCoz(girdi []byte, simdi int64) (agyLimitDosyasi, bool) {
 	if gemW.varMi {
 		cikti.R["agy_gemini.used_percentage"] = strconv.FormatFloat(gemW.pct, 'f', -1, 64)
 		cikti.R["agy_gemini.resets_at"] = strconv.FormatInt(gemW.reset, 10)
-	} else if gem5.varMi {
-		cikti.R["agy_gemini.used_percentage"] = strconv.FormatFloat(gem5.pct, 'f', -1, 64)
-		cikti.R["agy_gemini.resets_at"] = strconv.FormatInt(gem5.reset, 10)
 	}
 	if gem5.varMi {
 		cikti.R["agy_gemini_5h.used_percentage"] = strconv.FormatFloat(gem5.pct, 'f', -1, 64)
@@ -246,9 +236,6 @@ func agyStatusCoz(girdi []byte, simdi int64) (agyLimitDosyasi, bool) {
 	if ucpW.varMi {
 		cikti.R["agy_claude.used_percentage"] = strconv.FormatFloat(ucpW.pct, 'f', -1, 64)
 		cikti.R["agy_claude.resets_at"] = strconv.FormatInt(ucpW.reset, 10)
-	} else if ucp5.varMi {
-		cikti.R["agy_claude.used_percentage"] = strconv.FormatFloat(ucp5.pct, 'f', -1, 64)
-		cikti.R["agy_claude.resets_at"] = strconv.FormatInt(ucp5.reset, 10)
 	}
 	if ucp5.varMi {
 		cikti.R["agy_claude_5h.used_percentage"] = strconv.FormatFloat(ucp5.pct, 'f', -1, 64)
@@ -279,7 +266,8 @@ func agyLimitOku() (agyLimitDosyasi, bool) {
 	return l, true
 }
 
-// agyLimitAktifFiltrele: diskteki limit_agy.json kaydında süresi dolmuş kota pencerelerini temizler.
+// agyLimitAktifFiltrele: diskteki limit_agy.json kaydında süresi dolmuş veya eski sürümden kalan
+// çapraz havuz (Claude/GPT -> seven_day, 5s -> 7g) kirlenmelerini temizler.
 func agyLimitAktifFiltrele(l agyLimitDosyasi, simdi int64) map[string]string {
 	if len(l.R) == 0 {
 		return nil
@@ -300,11 +288,49 @@ func agyLimitAktifFiltrele(l agyLimitDosyasi, simdi int64) map[string]string {
 			if err != nil || (simdi > 0 && resetSn <= simdi) {
 				continue
 			}
+			// Haftalık pencerelere 5 saatlik pencerenin sızmasını engelle
+			if (on == "seven_day" || on == "agy_gemini" || on == "agy_claude") && l.T > 0 && resetSn <= l.T+8*3600 {
+				continue
+			}
 			temiz[on+".resets_at"] = rStr
 		}
 		temiz[on+".used_percentage"] = pStr
 	}
+	if temiz["agy_gemini.resets_at"] != "" && temiz["agy_gemini.resets_at"] == temiz["agy_gemini_5h.resets_at"] {
+		delete(temiz, "agy_gemini.used_percentage")
+		delete(temiz, "agy_gemini.resets_at")
+	}
+	if temiz["agy_claude.resets_at"] != "" && temiz["agy_claude.resets_at"] == temiz["agy_claude_5h.resets_at"] {
+		delete(temiz, "agy_claude.used_percentage")
+		delete(temiz, "agy_claude.resets_at")
+	}
+	// Eski sürümlerde Gemini haftalık yokken Claude/GPT haftalık (agy_claude) seven_day alanına yazılabiliyordu
+	if cRes := l.R["agy_claude.resets_at"]; cRes != "" && temiz["seven_day.resets_at"] == cRes && temiz["agy_gemini.resets_at"] != cRes {
+		delete(temiz, "seven_day.used_percentage")
+		delete(temiz, "seven_day.resets_at")
+	}
 	return temiz
+}
+
+// agyHaftaResetTemizle: limit_agy.json içindeki HaftaReset alanının Claude/GPT (3P) penceresinden gelmediğini doğrular.
+func agyHaftaResetTemizle(l agyLimitDosyasi, simdi int64) int64 {
+	if l.HaftaReset <= 0 || (simdi > 0 && simdi-l.T > 14*86400) {
+		return 0
+	}
+	hr := sonrakiHaftaReset(l.HaftaReset, simdi)
+	if cResStr := l.R["agy_claude.resets_at"]; cResStr != "" && l.R["agy_gemini.resets_at"] != cResStr {
+		if cRes, err := strconv.ParseInt(cResStr, 10, 64); err == nil && cRes > 0 {
+			cr := sonrakiHaftaReset(cRes, simdi)
+			fark := hr - cr
+			if fark < 0 {
+				fark = -fark
+			}
+			if fark < 600 {
+				return 0
+			}
+		}
+	}
+	return hr
 }
 
 // Gizli komut: agy statusLine tarafından çağrılır; her zaman 0 ile çıkar, hata basmaz.

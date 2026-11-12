@@ -22,18 +22,26 @@ func TestAgyModelAd(t *testing.T) {
 		"Gemini 4 Carbon (High)":    "agy-gemini-4-carbon",
 		"Gemini 4 Argon (Medium)":   "agy-gemini-4-argon",
 		"Gemini 3.8 Flash (Medium)": "agy-gemini-3.8-flash",
+		"Gemini 3.7 Flash":          "agy-gemini-3.7-flash",
+		"Gemini 3.6 Flash":          "agy-gemini-3.6-flash",
 		"Gemini 3.5 Flash (Low)":    "agy-gemini-3.5-flash",
+		"Gemini 3.5 Flash Lite":     "agy-gemini-3.5-flash-lite",
 		"gemini-3-flash-a":          "agy-gemini-3.5-flash",
 		"gemini-pro-b":              "agy-gemini-3.1-pro",
 		"gemini-3.8-flash-tiered":   "agy-gemini-3.8-flash",
+		"openai/gpt-oss-120b-maas":  "agy-gpt-oss-120b",
+		"GPT-OSS 120B (Medium)":     "agy-gpt-oss-120b",
 		"MODEL_PLACEHOLDER_M427":    "agy-gemini-4-carbon",
-		"None":                      "agy-gemini",
-		"":                          "agy-gemini",
+		"None":                      "agy-gemini-4-argon",
+		"":                          "agy-gemini-4-argon",
 	}
 	for g, b := range durumlar {
 		if s := agyModelAd(g); s != b {
 			t.Errorf("%q -> %q, beklenen %q", g, s, b)
 		}
+	}
+	if m := agyGenMetaModelCoz("", "gemini-4-argon", 0); m != "agy-gemini-4-argon" {
+		t.Errorf("canon gemini-4-argon çözülmeliydi: got=%q", m)
 	}
 }
 
@@ -717,6 +725,45 @@ func TestAgyStatusLineKotaVeAyarKoruma(t *testing.T) {
 	cozTukenen, okT := agyStatusCoz(tukenen, simdi)
 	if !okT || cozTukenen.R["seven_day.used_percentage"] != "100" {
 		t.Fatalf("tükenen kota %%100 olmalıydı: %+v", cozTukenen)
+	}
+
+	// Yalnızca 5s Gemini + 7g Claude/GPT varken Claude/GPT haftalık kotası seven_day veya HaftaReset alanına ASLA sızmamalı!
+	yalniz3pW := []byte(`{
+		"email": "ornek@ekip.com",
+		"quota": {
+			"gemini-5h": { "remaining_fraction": 0.977, "reset_time": "2026-11-12T03:26:45Z" },
+			"3p-weekly": { "remaining_fraction": 0.023, "reset_time": "2026-11-17T12:09:53Z" }
+		}
+	}`)
+	cozYalniz3p, ok3p := agyStatusCoz(yalniz3pW, simdi)
+	if !ok3p {
+		t.Fatal("yalnız 3P haftalık + Gemini 5s geçerli olmalıydı")
+	}
+	if _, sizan := cozYalniz3p.R["seven_day.used_percentage"]; sizan || cozYalniz3p.HaftaReset != 0 {
+		t.Fatalf("3P haftalık kotası Gemini seven_day veya HaftaReset alanına sızmamalı: %+v", cozYalniz3p)
+	}
+	if _, sizan5 := cozYalniz3p.R["agy_gemini.used_percentage"]; sizan5 {
+		t.Fatalf("Gemini 5s penceresi agy_gemini (7g) alanına sızmamalı: %+v", cozYalniz3p.R)
+	}
+	if cozYalniz3p.R["agy_claude.used_percentage"] != "97.7" || cozYalniz3p.R["five_hour.used_percentage"] != "2.3" {
+		t.Fatalf("ayrık 3p-weekly ve gemini-5h okunmalıydı: %+v", cozYalniz3p.R)
+	}
+
+	// state.vscdb tarafında da yalnızca 5s Gemini + 7g Claude/GPT varken seven_day / haftaReset sızmamalı
+	vscdbYalniz3p := sahteUserStatusDisB64("ornek@ekip.com", 64, []struct {
+		etiket  string
+		kalan   float32
+		resetSn int64
+	}{
+		{"Gemini 4 Carbon", 0.977, simdi + 4*3600},
+		{"Claude Opus 5.5", 0.023, simdi + 5*86400},
+	})
+	_, vscR, vscVar, vscHReset := agyUserStatusCoz(vscdbYalniz3p, simdi-60, simdi)
+	if !vscVar || vscHReset != 0 || vscR["seven_day.used_percentage"] != "" || vscR["agy_gemini.used_percentage"] != "" {
+		t.Fatalf("state.vscdb 3P haftalık kotası Gemini haftalığa sızmamalı: hReset=%d r=%v", vscHReset, vscR)
+	}
+	if vscR["agy_claude.used_percentage"] != "97.7" || vscR["five_hour.used_percentage"] != "2.3" {
+		t.Fatalf("state.vscdb ayrık değerler hatalı: %v", vscR)
 	}
 
 	agyLimitYaz(coz)

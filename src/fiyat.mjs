@@ -16,16 +16,31 @@ export const LITELLM_ADRES = "https://raw.githubusercontent.com/BerriAI/litellm/
 export const UZUN_EKI = "@uzun";
 
 const CARBON_GECIS_MS = Date.parse("2026-12-01T00:00:00Z");
+const FLASH_3_GECIS_MS = Date.parse("2027-01-01T00:00:00Z");
 
-// Tarihe bağlı resmî fiyat geçişleri (ör. Gemini 4 Carbon / Argon: 30 Kas 2026 sonuna dek tanıtım fiyatı, 1 Ara 2026 itibarıyla standart tarife)
+// Tarihe bağlı resmî fiyat geçişleri (ai.google.dev/gemini-api/docs/pricing.md.txt):
+// - Gemini 4 Carbon / Argon: 30 Kas 2026 sonuna dek $2 / $10 / $0.10, 1 Ara 2026 itibarıyla $4 / $20 / $0.20 (düz tarife)
+// - Gemini 3.8 / 3.7 / 3.6 Flash: 31 Ara 2026 sonuna dek $0.75 / $3.75 / $0.075, 1 Oca 2027 itibarıyla $1.50 / $7.50 / $0.15
 export const DONEMLI = {
   "gemini-4-carbon": [
     { bitMs: CARBON_GECIS_MS, kayit: { b: [2, 10, 2, 2, 0.1] } },
-    { basMs: CARBON_GECIS_MS, kayit: { b: [4, 20, 4, 4, 0.2], u: { esik: 200000, f: [8, 30, 8, 8, 0.4] } } },
+    { basMs: CARBON_GECIS_MS, kayit: { b: [4, 20, 4, 4, 0.2] } },
   ],
   "gemini-4-argon": [
     { bitMs: CARBON_GECIS_MS, kayit: { b: [2, 10, 2, 2, 0.1] } },
-    { basMs: CARBON_GECIS_MS, kayit: { b: [4, 20, 4, 4, 0.2], u: { esik: 200000, f: [8, 30, 8, 8, 0.4] } } },
+    { basMs: CARBON_GECIS_MS, kayit: { b: [4, 20, 4, 4, 0.2] } },
+  ],
+  "gemini-3.8-flash": [
+    { bitMs: FLASH_3_GECIS_MS, kayit: { b: [0.75, 3.75, 0.75, 0.75, 0.075] } },
+    { basMs: FLASH_3_GECIS_MS, kayit: { b: [1.5, 7.5, 1.5, 1.5, 0.15] } },
+  ],
+  "gemini-3.7-flash": [
+    { bitMs: FLASH_3_GECIS_MS, kayit: { b: [0.75, 3.75, 0.75, 0.75, 0.075] } },
+    { basMs: FLASH_3_GECIS_MS, kayit: { b: [1.5, 7.5, 1.5, 1.5, 0.15] } },
+  ],
+  "gemini-3.6-flash": [
+    { bitMs: FLASH_3_GECIS_MS, kayit: { b: [0.75, 3.75, 0.75, 0.75, 0.075] } },
+    { basMs: FLASH_3_GECIS_MS, kayit: { b: [1.5, 7.5, 1.5, 1.5, 0.15] } },
   ],
 };
 
@@ -109,18 +124,18 @@ export const YERLESIK = {
   "o3-mini": { b: [1.1, 4.4, 1.1, 1.1, 0.55] },
   "o1-pro": { b: [150, 600, 150, 150, 75] },
   "o1": { b: [15, 60, 15, 15, 7.5] },
-  "gpt-oss-120b": { b: [0.15, 0.6, 0.15, 0.15, 0.075] },
-  "gpt-oss-20b": { b: [0.05, 0.2, 0.05, 0.05, 0.025] },
+  "gpt-oss-120b": { b: [0.15, 0.6, 0.15, 0.15, 0.015] },
+  "gpt-oss-20b": { b: [0.075, 0.3, 0.075, 0.075, 0.0075] },
 
-  // Google Gemini & Antigravity API eşdeğeri ($ / MTok)
+  // Google Gemini API resmî fiyat tablosu ($ / MTok — ai.google.dev/gemini-api/docs/pricing.md.txt)
   "gemini-4-carbon": { b: [2, 10, 2, 2, 0.1] },
   "gemini-4-argon": { b: [2, 10, 2, 2, 0.1] },
-  "gemini-3.8-flash": { b: [0.5, 3, 0.5, 0.5, 0.05] },
+  "gemini-3.8-flash": { b: [0.75, 3.75, 0.75, 0.75, 0.075] },
   "gemini-3.8-flash-cyber": { b: [1.5, 7.5, 1.5, 1.5, 0.15] },
-  "gemini-3.7-flash": { b: [0.5, 3, 0.5, 0.5, 0.05] },
-  "gemini-3.6-flash": { b: [0.5, 3, 0.5, 0.5, 0.05] },
-  "gemini-3.5-flash": { b: [0.5, 3, 0.5, 0.5, 0.05] },
-  "gemini-3.5-flash-lite": { b: [0.25, 1.5, 0.25, 0.25, 0.025] },
+  "gemini-3.7-flash": { b: [0.75, 3.75, 0.75, 0.75, 0.075] },
+  "gemini-3.6-flash": { b: [0.75, 3.75, 0.75, 0.75, 0.075] },
+  "gemini-3.5-flash": { b: [1.5, 9, 1.5, 1.5, 0.15] },
+  "gemini-3.5-flash-lite": { b: [0.3, 2.5, 0.3, 0.3, 0.03] },
   "gemini-omni-1.2-flash": { b: [1.5, 9, 1.5, 1.5, 0.15] },
   "gemini-omni-1.1-flash": { b: [1.5, 9, 1.5, 1.5, 0.15] },
   "gemini-3.1-pro": { b: [2, 12, 2, 2, 0.2], u: { esik: 200000, f: [4, 18, 4, 4, 0.4] } },
@@ -150,6 +165,14 @@ export function saglayiciOf(model) {
   if (m.startsWith("gemini-")) return "gemini";
   if (m.startsWith("claude-")) return "claude";
   return "chatgpt";
+}
+
+// Antigravity içinde çalıştırılan 3. parti modeller (Claude ve GPT/OpenAI):
+// Gemini modellerinin haftalık kotasına değil, ayrı özel "Claude & GPT" haftalık kotasına etki eder.
+export function gemini3pModelMi(model) {
+  let m = String(model || "").toLowerCase();
+  if (m.endsWith(UZUN_EKI)) m = m.slice(0, -UZUN_EKI.length);
+  return /^agy-(?:claude|gpt|o[134](?:$|-)|openai|codex)/.test(m);
 }
 
 const AILELER = ["fable", "mythos", "opus", "sonnet", "haiku"];
@@ -485,7 +508,7 @@ export function eslesenModelBul(liste, model, zaman) {
   const ad = String(tabanAd(String(model || ""))).toLowerCase();
   const don = (anahtar) => ({ anahtar, kayit: donemliKayit(anahtar, l[anahtar] || YERLESIK[anahtar], zaman) });
 
-  if (ad === "agy-gemini" && !(l[ad] && l[ad].ozel)) return eslesenModelBul(l, "gemini-4-carbon", zaman);
+  if (ad === "agy-gemini" && !(l[ad] && l[ad].ozel)) return eslesenModelBul(l, "gemini-4-argon", zaman);
   if (Object.hasOwn(ESKI_MODEL_ESLEME, ad)) return eslesenModelBul(l, ESKI_MODEL_ESLEME[ad], zaman);
   if (l[ad]) return don(ad);
 
@@ -503,7 +526,7 @@ export function eslesenModelBul(liste, model, zaman) {
     ) {
       return eslesenModelBul(l, alt, zaman);
     }
-    return don(l["gemini-4-carbon"] || YERLESIK["gemini-4-carbon"] ? "gemini-4-carbon" : "gemini-3.1-pro");
+    return don(l["gemini-4-argon"] || YERLESIK["gemini-4-argon"] ? "gemini-4-argon" : "gemini-3.1-pro");
   }
 
   if (ad.startsWith("openai-")) {

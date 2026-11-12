@@ -352,17 +352,18 @@ func TestHaftalikSifirlamaDiskOkuma(t *testing.T) {
 		kalan   float32
 		resetSn int64
 	}{
-		{etiket: "Claude Sonnet 4.6", kalan: 0.25, resetSn: gecmisReset},
+		{etiket: "Gemini 4 Carbon", kalan: 0.25, resetSn: gecmisReset},
+		{etiket: "Claude Sonnet 4.6", kalan: 0.10, resetSn: gecmisReset + 2*86400},
 	})
 	eposta, limR, limVar, haftaReset := agyUserStatusCoz(disB64, mtSn, simdi)
 	if eposta != "deniz@firma.com" {
 		t.Fatalf("eposta hatalı: %q", eposta)
 	}
-	if limVar || len(limR) != 0 {
-		t.Fatalf("süresi dolmuş pencereden aktif limit yüzdesi çıkmamalıydı: %+v", limR)
+	if !limVar || limR["agy_claude.used_percentage"] != "90" || limR["seven_day.used_percentage"] != "" {
+		t.Fatalf("süresi dolmuş Gemini penceresinden seven_day çıkmamalı, aktif Claude penceresi yalnız agy_claude olmalı: %+v", limR)
 	}
 	if haftaReset != gecmisReset+7*86400 {
-		t.Fatalf("sonraki haftalık sıfırlama %d bekleniyordu, gelen %d", gecmisReset+7*86400, haftaReset)
+		t.Fatalf("sonraki haftalık sıfırlama Gemini penceresinden %d bekleniyordu, gelen %d", gecmisReset+7*86400, haftaReset)
 	}
 }
 

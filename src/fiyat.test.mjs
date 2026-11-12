@@ -5,6 +5,7 @@ import {
   DONEMLI,
   UZUN_EKI,
   saglayiciOf,
+  gemini3pModelMi,
   resmiAyristir,
   geminiResmiAyristir,
   litellmAyristir,
@@ -224,7 +225,8 @@ test("eslesenModelBul, fiyatBul ve esikler agy-*, openai-*, tarihli ad ve @uzun 
   assert.deepEqual(fiyatBul(liste, "gpt-6.1-sol-2026-11-01" + UZUN_EKI), [4, 15, 4, 4, 0.2]);
 
   assert.equal(eslesenModelBul(liste, "openai-gpt-5.3-codex").anahtar, "gpt-5.3-codex");
-  assert.deepEqual(fiyatBul(liste, "agy-gpt-oss-120b"), [0.15, 0.6, 0.15, 0.15, 0.075]);
+  assert.deepEqual(fiyatBul(liste, "agy-gpt-oss-120b"), [0.15, 0.6, 0.15, 0.15, 0.015]);
+  assert.deepEqual(fiyatBul(liste, "agy-gpt-oss-20b"), [0.075, 0.3, 0.075, 0.075, 0.0075]);
   assert.equal(eslesenModelBul(liste, "claude-opus-5.5").anahtar, "claude-opus-5-5");
   assert.equal(kayitBul(liste, "claude-haiku-5-5-20261001").u.esik, 100000);
 
@@ -234,40 +236,60 @@ test("eslesenModelBul, fiyatBul ve esikler agy-*, openai-*, tarihli ad ve @uzun 
   assert.equal(e["gpt-6.1-sol"], 272000);
 });
 
-test("resmî Gemini & Carbon fiyatları, seviye ekleri, eski takma adlar ve 1 Aralık 2026 DONEMLI geçişi", () => {
+test("gemini3pModelMi Antigravity içindeki Claude ve GPT modellerini Gemini modellerinden kesin ayırır", () => {
+  assert.equal(gemini3pModelMi("agy-claude-opus-5-5"), true);
+  assert.equal(gemini3pModelMi("agy-claude-sonnet-5-5@uzun"), true);
+  assert.equal(gemini3pModelMi("agy-gpt-oss-120b"), true);
+  assert.equal(gemini3pModelMi("agy-gpt-5.4"), true);
+  assert.equal(gemini3pModelMi("agy-o3"), true);
+  assert.equal(gemini3pModelMi("agy-codex-mini"), true);
+
+  assert.equal(gemini3pModelMi("agy-gemini-4-carbon"), false);
+  assert.equal(gemini3pModelMi("agy-gemini-4-argon"), false);
+  assert.equal(gemini3pModelMi("agy-gemini-3.8-flash"), false);
+  assert.equal(gemini3pModelMi("gemini-3.1-pro"), false);
+  assert.equal(gemini3pModelMi("claude-opus-5-5"), false);
+  assert.equal(gemini3pModelMi("gpt-6.1-sol"), false);
+});
+
+test("resmî Gemini & Carbon/Argon fiyatları, seviye ekleri, eski takma adlar ve 2026/2027 DONEMLI geçişleri", () => {
   const kasim = "2026-11-30T23:59:59Z";
   const aralik = "2026-12-01T00:00:00Z";
+  const ocak2027 = "2027-01-01T00:00:00Z";
   const listeKasim = birlestir({ "agy-gemini": { b: [2, 10, 2, 2, 0.1] } }, kasim);
   const listeAralik = birlestir({ "agy-gemini": { b: [2, 10, 2, 2, 0.1] } }, aralik);
+  const liste2027 = birlestir({}, ocak2027);
 
-  // YERLESIK içinde agy-gemini sabit tuzağı bulunmamalı; her zaman gemini-4-carbon dönemli kaydına yönlenmeli
+  // YERLESIK içinde agy-gemini sabit tuzağı bulunmamalı; eski agy-gemini satırları gemini-4-argon dönemli kaydına yönlenmeli
   assert.equal(YERLESIK["agy-gemini"], undefined);
   assert.ok(DONEMLI["gemini-4-carbon"]);
   assert.ok(DONEMLI["gemini-4-argon"]);
+  assert.ok(DONEMLI["gemini-3.8-flash"]);
 
   // Kasım 2026 (2026-12-01T00:00:00Z öncesi)
-  assert.equal(eslesenModelBul(listeKasim, "agy-gemini", kasim).anahtar, "gemini-4-carbon");
+  assert.equal(eslesenModelBul(listeKasim, "agy-gemini", kasim).anahtar, "gemini-4-argon");
   assert.deepEqual(fiyatBul(listeKasim, "agy-gemini", kasim), [2, 10, 2, 2, 0.1]);
   assert.deepEqual(fiyatBul(listeKasim, "agy-gemini-4-carbon", kasim), [2, 10, 2, 2, 0.1]);
   assert.deepEqual(fiyatBul(listeKasim, "agy-gemini-4-argon", kasim), [2, 10, 2, 2, 0.1]);
 
-  // 1 Aralık 2026 ve sonrası (2026-12-01T00:00:00Z itibarıyla)
-  assert.equal(eslesenModelBul(listeAralik, "agy-gemini", aralik).anahtar, "gemini-4-carbon");
+  // 1 Aralık 2026 ve sonrası (düz $4 / $20 / $0.20, sahte >200k katmanı yok)
+  assert.equal(eslesenModelBul(listeAralik, "agy-gemini", aralik).anahtar, "gemini-4-argon");
   assert.deepEqual(fiyatBul(listeAralik, "agy-gemini", aralik), [4, 20, 4, 4, 0.2]);
-  assert.deepEqual(fiyatBul(listeAralik, "agy-gemini" + UZUN_EKI, aralik), [8, 30, 8, 8, 0.4]);
   assert.deepEqual(fiyatBul(listeAralik, "agy-gemini-4-carbon", aralik), [4, 20, 4, 4, 0.2]);
-  assert.deepEqual(fiyatBul(listeAralik, "agy-gemini-4-carbon" + UZUN_EKI, aralik), [8, 30, 8, 8, 0.4]);
   assert.deepEqual(fiyatBul(listeAralik, "agy-gemini-4-argon", aralik), [4, 20, 4, 4, 0.2]);
-  assert.deepEqual(fiyatBul(listeAralik, "agy-gemini-4-argon" + UZUN_EKI, aralik), [8, 30, 8, 8, 0.4]);
-  assert.equal(esikler(listeAralik, aralik)["gemini-4-carbon"], 200000);
+  assert.equal(esikler(listeAralik, aralik)["gemini-4-carbon"], undefined);
+  assert.equal(esikler(listeAralik, aralik)["gemini-4-argon"], undefined);
 
-  // Resmî Gemini model fiyatları ve Antigravity / seviye eki çözümlemesi
+  // Resmî Gemini Flash 3.x fiyatları (2026: $0.75 / $3.75 / $0.075 -> 2027: $1.50 / $7.50 / $0.15) ve 3.5 Flash ($1.50 / $9 / $0.15)
   assert.equal(eslesenModelBul(listeKasim, "agy-gemini-3.8-flash", kasim).anahtar, "gemini-3.8-flash");
-  assert.deepEqual(fiyatBul(listeKasim, "agy-gemini-3.8-flash", kasim), [0.5, 3, 0.5, 0.5, 0.05]);
+  assert.deepEqual(fiyatBul(listeKasim, "agy-gemini-3.8-flash", kasim), [0.75, 3.75, 0.75, 0.75, 0.075]);
   assert.equal(eslesenModelBul(listeKasim, "agy-gemini-3.8-flash-tiered", kasim).anahtar, "gemini-3.8-flash");
-  assert.deepEqual(fiyatBul(listeKasim, "agy-gemini-3.8-flash-tiered", kasim), [0.5, 3, 0.5, 0.5, 0.05]);
+  assert.deepEqual(fiyatBul(listeKasim, "agy-gemini-3.8-flash-tiered", kasim), [0.75, 3.75, 0.75, 0.75, 0.075]);
+  assert.deepEqual(fiyatBul(liste2027, "agy-gemini-3.8-flash", ocak2027), [1.5, 7.5, 1.5, 1.5, 0.15]);
+  assert.deepEqual(fiyatBul(liste2027, "gemini-3.7-flash", ocak2027), [1.5, 7.5, 1.5, 1.5, 0.15]);
   assert.equal(eslesenModelBul(listeKasim, "agy-gemini-3.5-flash", kasim).anahtar, "gemini-3.5-flash");
-  assert.deepEqual(fiyatBul(listeKasim, "agy-gemini-3.5-flash", kasim), [0.5, 3, 0.5, 0.5, 0.05]);
+  assert.deepEqual(fiyatBul(listeKasim, "agy-gemini-3.5-flash", kasim), [1.5, 9, 1.5, 1.5, 0.15]);
+  assert.deepEqual(fiyatBul(listeKasim, "agy-gemini-3.5-flash-lite", kasim), [0.3, 2.5, 0.3, 0.3, 0.03]);
   assert.equal(eslesenModelBul(listeKasim, "agy-claude-opus-5-5", kasim).anahtar, "claude-opus-5-5");
   assert.equal(eslesenModelBul(listeKasim, "agy-claude-opus-5-5-high", kasim).anahtar, "claude-opus-5-5");
   assert.equal(eslesenModelBul(listeKasim, "agy-claude-sonnet-5-5-thinking", kasim).anahtar, "claude-sonnet-5-5");

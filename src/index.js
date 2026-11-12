@@ -13,7 +13,7 @@
 //  - Hafta Cumartesi 09:00 Türkiye (UTC+3) = Cumartesi 06:00 UTC başlar; günler 09:00 -> 09:00.
 import APP from "./app.html";
 import { satirOf, yeniSatirMi, etkinHafta, etkin5, pencereAnahtari, SAAT } from "./limit.mjs";
-import { YERLESIK, birlestir, fiyatBul, kayitBul, eslesenModelBul, fiyatlariIndir, esikler, tabanAd, saglayiciOf } from "./fiyat.mjs";
+import { YERLESIK, birlestir, fiyatBul, kayitBul, eslesenModelBul, fiyatlariIndir, esikler, tabanAd, saglayiciOf, gemini3pModelMi } from "./fiyat.mjs";
 import KUR_SH from "../istemci/kur.sh";
 import KUR_PS1 from "../istemci/kur.ps1";
 import MANIFEST from "../istemci/manifest.json"; // geliştiricinin Mac'inde imzalanır; sunucu imzalayamaz
@@ -1355,6 +1355,121 @@ function limitOkumaV(l, now) {
   return { t: l.t, r: temiz };
 }
 
+// Antigravity / Gemini kota havuzu yalıtımı:
+// - 5 saatlik pencereler (resets_at <= t + 8 sa) haftalık alanlara sızamaz.
+// - "Claude & GPT" (agy_claude) ayrı 7 günlük özel havuzdur; Gemini modellerinin haftalık yüzdesine (seven_day / agy_gemini)
+//   veya Gemini otomatik haftalık sıfırlama saatine (oto_hafta_sifirlama) asla sızamaz.
+function geminiPlimVeResetTemizle(plim, gelenHrSn, clientVer, now) {
+  let temizPlim = plim ? { t: plim.t, r: { ...plim.r } } : null;
+  if (temizPlim && !temizPlim.r.manual) {
+    const r = temizPlim.r;
+    const sekizSaat = temizPlim.t + 8 * 3600;
+    const g5Res = Number.isFinite(r["agy_gemini_5h.resets_at"]) ? r["agy_gemini_5h.resets_at"] : 0;
+    const c5Res = Number.isFinite(r["agy_claude_5h.resets_at"]) ? r["agy_claude_5h.resets_at"] : 0;
+
+    if (
+      Number.isFinite(r["agy_gemini.resets_at"]) &&
+      (r["agy_gemini.resets_at"] <= sekizSaat || (g5Res > 0 && Math.abs(r["agy_gemini.resets_at"] - g5Res) < 60))
+    ) {
+      delete r["agy_gemini.used_percentage"];
+      delete r["agy_gemini.resets_at"];
+    }
+    if (
+      Number.isFinite(r["agy_claude.resets_at"]) &&
+      (r["agy_claude.resets_at"] <= sekizSaat || (c5Res > 0 && Math.abs(r["agy_claude.resets_at"] - c5Res) < 60))
+    ) {
+      delete r["agy_claude.used_percentage"];
+      delete r["agy_claude.resets_at"];
+    }
+
+    const gRes = Number.isFinite(r["agy_gemini.resets_at"]) ? r["agy_gemini.resets_at"] : 0;
+    const cRes = Number.isFinite(r["agy_claude.resets_at"]) ? r["agy_claude.resets_at"] : 0;
+    const wRes = Number.isFinite(r["seven_day.resets_at"]) ? r["seven_day.resets_at"] : 0;
+    const ucpSizintisi =
+      wRes > 0 && cRes > 0 && Math.abs(wRes - cRes) < 600 && !(gRes > 0 && Math.abs(gRes - cRes) < 600);
+    const eskiSurumSizintisi =
+      clientVer < 41 &&
+      !Number.isFinite(r["agy_gemini.used_percentage"]) &&
+      (Number.isFinite(r["agy_claude.used_percentage"]) ||
+        Number.isFinite(r["agy_gemini_5h.used_percentage"]) ||
+        Number.isFinite(r["agy_claude_5h.used_percentage"]));
+    if (
+      (wRes > 0 && wRes <= sekizSaat) ||
+      (wRes > 0 && g5Res > 0 && Math.abs(wRes - g5Res) < 60) ||
+      (wRes > 0 && c5Res > 0 && Math.abs(wRes - c5Res) < 60) ||
+      ucpSizintisi ||
+      eskiSurumSizintisi
+    ) {
+      delete r["seven_day.used_percentage"];
+      delete r["seven_day.resets_at"];
+    } else if (
+      Number.isFinite(r["agy_gemini.used_percentage"]) &&
+      gRes > sekizSaat &&
+      !Number.isFinite(r["seven_day.used_percentage"])
+    ) {
+      r["seven_day.used_percentage"] = r["agy_gemini.used_percentage"];
+      r["seven_day.resets_at"] = gRes;
+    }
+
+    if (Object.keys(r).length === 0) temizPlim = null;
+  }
+
+  let hrSn = Number.isFinite(gelenHrSn) ? gelenHrSn : 0;
+  const r = temizPlim ? temizPlim.r : null;
+  const temizWRes =
+    r && Number.isFinite(r["seven_day.resets_at"]) && r["seven_day.resets_at"] <= temizPlim.t + 10 * 86400
+      ? r["seven_day.resets_at"]
+      : 0;
+  const temizGRes =
+    r && Number.isFinite(r["agy_gemini.resets_at"]) && r["agy_gemini.resets_at"] <= temizPlim.t + 10 * 86400
+      ? r["agy_gemini.resets_at"]
+      : 0;
+  const temizCRes = r && Number.isFinite(r["agy_claude.resets_at"]) ? r["agy_claude.resets_at"] : 0;
+
+  if (temizWRes > 0 || temizGRes > 0) {
+    hrSn = sonrakiHaftaSn(temizWRes || temizGRes, now);
+  } else if (clientVer < 41) {
+    hrSn = 0;
+  } else if (hrSn > 0 && temizCRes > 0 && Math.abs(hrSn - sonrakiHaftaSn(temizCRes, now)) < 600) {
+    hrSn = 0;
+  }
+  return { plim: temizPlim, hrSn: hrSn > 0 ? hrSn : 0 };
+}
+
+function etkinHamHafta(rows, alanOn, taban = 0, minReset = 0) {
+  const pctK = `${alanOn}.used_percentage`;
+  const resK = `${alanOn}.resets_at`;
+  const hamSatirlar = [];
+  for (const r of rows || []) {
+    if (!r || !r.ham || r.t < (taban || 0)) continue;
+    let h;
+    try { h = typeof r.ham === "string" ? JSON.parse(r.ham) : r.ham; } catch { continue; }
+    const pct = h && Number(h[pctK]);
+    const res = h && Number(h[resK]);
+    if (!Number.isFinite(pct) || !Number.isFinite(res)) continue;
+    if (res <= r.t + 8 * 3600) continue;
+    if (minReset > 0 && res <= minReset) continue;
+    hamSatirlar.push({ t: r.t, w_pct: pct, w_reset: res });
+  }
+  return etkinHafta(hamSatirlar, taban);
+}
+
+function etkinHam5(rows, alanOn, now) {
+  const pctK = `${alanOn}.used_percentage`;
+  const resK = `${alanOn}.resets_at`;
+  const hamSatirlar = [];
+  for (const r of rows || []) {
+    if (!r || !r.ham) continue;
+    let h;
+    try { h = typeof r.ham === "string" ? JSON.parse(r.ham) : r.ham; } catch { continue; }
+    const pct = h && Number(h[pctK]);
+    const res = h && Number(h[resK]);
+    if (!Number.isFinite(pct) || !Number.isFinite(res) || res <= now) continue;
+    hamSatirlar.push({ t: r.t, h_pct: pct, h_reset: res });
+  }
+  return etkin5(hamSatirlar, now);
+}
+
 // limit_log'u (haftanın etkin değeri) geçmişten yeniden hesaplar: en yeni penceredeki en büyük okuma, taban sonrası.
 // Tek SQL ifadesi: ek okuma gerektirmez. Okuma yoksa satıra dokunmaz.
 function limitLogYenile(env, hs) {
@@ -1387,8 +1502,41 @@ function saglayiciLimitLogYenile(env, sgl, hs) {
   ).bind(sgl, hs, WEEK);
 }
 
-function fableKesilmisSatir() { return false; }
-function fableKesimUygula(rows, dilim) { return { rows, dilim }; }
+// Tek seferlik düzeltme: Claude Fable 5.2 kullanımı, 12 Kas 2026 03:40'a (Türkiye saati) kadar bu hafta için sayılmaz.
+// Göndericiler son günlerin satırlarını yeniden gönderdiği için silme tek başına yetmez; kesimden öncesi alımda da elenir.
+// Kesim saat dilimini böldüğü için o saatin değeri, kesimden sonraki 5 dakikalık dilimlerden yeniden kurulur.
+const FABLE_KESIM = { bas: 1794031200, kesim: 1794444000, re: /^claude-fable/i }; // bas: 7 Kas 09:00 (hafta başı), kesim: 12 Kas 03:40 +03:00
+function fableKesilmisSatir(model, t) {
+  return FABLE_KESIM.re.test(model) && t >= FABLE_KESIM.bas && t < FABLE_KESIM.kesim;
+}
+function fableKesimUygula(rows, dilim, prevHRows = []) {
+  const saatBas = Math.floor(FABLE_KESIM.kesim / 3600) * 3600;
+  const outRows = rows.filter((r) => !fableKesilmisSatir(r.model, r.h));
+  const outDilim = dilim.filter((r) => !fableKesilmisSatir(r.model, r.t));
+  const topla = new Map();
+  for (const r of outDilim) {
+    if (!FABLE_KESIM.re.test(r.model) || r.t < FABLE_KESIM.kesim || r.t >= saatBas + 3600) continue;
+    const k = r.model + "|" + r.sid;
+    const a = topla.get(k) || { model: r.model, sid: r.sid, vals: [0, 0, 0, 0, 0, 0] };
+    r.vals.forEach((v, i) => { a.vals[i] += v; });
+    topla.set(k, a);
+  }
+  // Gönderici yalnızca son 3 saatin 5-dk dilimlerini (body.m) yollar; 3 saat geçtikten sonra kesim saatinin
+  // (03:40–04:00) verisi silinmesin diye veritabanındaki temizlenmiş saatlik kayıtlarla üst sınır (MAX) alınır.
+  for (const p of prevHRows) {
+    if (p.hour !== saatBas || !FABLE_KESIM.re.test(p.model)) continue;
+    const pVals = [p.input, p.output, p.cw5m, p.cw1h, p.cr, p.messages];
+    const k = p.model + "|" + p.sid;
+    const a = topla.get(k);
+    if (!a) {
+      topla.set(k, { model: p.model, sid: p.sid, vals: pVals });
+    } else {
+      for (let i = 0; i < 6; i++) a.vals[i] = Math.max(a.vals[i], pVals[i]);
+    }
+  }
+  for (const a of topla.values()) outRows.push({ h: saatBas, model: a.model, sid: a.sid, vals: a.vals });
+  return { rows: outRows, dilim: outDilim };
+}
 
 function beklenenIkiliSha256(surum, hedef) {
   if (!MANIFEST || !hedef) return "";
@@ -1562,26 +1710,45 @@ async function handleIngest(req, env, ctx) {
 
   // Tüm satırlar yazılmadan önce doğrulanır; izinli olmayan sağlayıcıların satırları düşürülür
   const sidOk = (x) => (x === undefined || x === "" ? "" : SID_RE.test(x) ? x : null);
-  const rowsV = [];
+  const rowsHam = [];
   for (const r of body.rows) {
     const vals = [r.input, r.output, r.cw5m, r.cw1h, r.cr, r.messages];
     const sid = sidOk(r.sid);
     if (sid === null || !Number.isSafeInteger(r.h) || r.h % 3600 !== 0 || r.h < minH || r.h > maxH || !MODEL_RE.test(r.model) || !vals.every(isCount)) {
       return json({ hata: "geçersiz satır" }, 400);
     }
-    if (!izinliSet.has(saglayiciOf(r.model))) continue;
-    rowsV.push({ h: r.h, model: r.model, sid, vals });
+    const model = r.model === "agy-gemini" || r.model === "agy-gemini@uzun" ? "agy-gemini-4-argon" : r.model;
+    if (!izinliSet.has(saglayiciOf(model))) continue;
+    rowsHam.push({ h: r.h, model, sid, vals });
   }
-  const dilimV = [];
+  const rowsMap = new Map();
+  for (const r of rowsHam) {
+    const k = `${r.h}|${r.model}|${r.sid}`;
+    const prev = rowsMap.get(k);
+    if (!prev) rowsMap.set(k, { ...r, vals: [...r.vals] });
+    else for (let i = 0; i < 6; i++) prev.vals[i] += r.vals[i];
+  }
+  const rowsV = [...rowsMap.values()];
+
+  const dilimHam = [];
   for (const r of body.m || []) {
     const vals = [r.input, r.output, r.cw5m, r.cw1h, r.cr, r.messages];
     const sid = sidOk(r.sid);
     if (sid === null || !Number.isSafeInteger(r.t) || r.t % 300 !== 0 || r.t < now - 4 * 3600 || r.t > now + 300 || !MODEL_RE.test(r.model) || !vals.every(isCount)) {
       return json({ hata: "geçersiz dilim" }, 400);
     }
-    if (!izinliSet.has(saglayiciOf(r.model))) continue;
-    dilimV.push({ t: r.t, model: r.model, sid, vals });
+    const model = r.model === "agy-gemini" || r.model === "agy-gemini@uzun" ? "agy-gemini-4-argon" : r.model;
+    if (!izinliSet.has(saglayiciOf(model))) continue;
+    dilimHam.push({ t: r.t, model, sid, vals });
   }
+  const dilimMap = new Map();
+  for (const r of dilimHam) {
+    const k = `${r.t}|${r.model}|${r.sid}`;
+    const prev = dilimMap.get(k);
+    if (!prev) dilimMap.set(k, { ...r, vals: [...r.vals] });
+    else for (let i = 0; i < 6; i++) prev.vals[i] += r.vals[i];
+  }
+  const dilimV = [...dilimMap.values()];
 
   // Ortak hesap kilidi: yerel dosyalardan gelen e-posta adreslerini ve SHA-256 hesap özetlerini kontrol eder.
   // İzinli olmayan sağlayıcıların hesap/e-posta/sıfırlama verileri yok sayılır ve kilit uyumsuzluğu üretmez.
@@ -1922,11 +2089,20 @@ async function handleIngest(req, env, ctx) {
       if (!plim) continue;
       if (sgl === "gemini" && clientVer < 29) delete plim.r["seven_day.resets_at"];
       kabulPlim[sgl] = plim;
-      if (!gelenHaftaReset[sgl] && Number.isFinite(plim.r["seven_day.resets_at"]) && plim.r["seven_day.resets_at"] <= plim.t + 10 * 86400) {
+      if (sgl !== "gemini" && !gelenHaftaReset[sgl] && Number.isFinite(plim.r["seven_day.resets_at"]) && plim.r["seven_day.resets_at"] <= plim.t + 10 * 86400) {
         const sr = sonrakiHaftaSn(plim.r["seven_day.resets_at"], now);
         if (sr > 0) gelenHaftaReset[sgl] = sr;
       }
     }
+  }
+  if (izinliSet.has("gemini") && !engelliSaglayici.has("gemini")) {
+    const temizG = geminiPlimVeResetTemizle(kabulPlim.gemini || null, gelenHaftaReset.gemini || 0, clientVer, now);
+    if (temizG.plim) kabulPlim.gemini = temizG.plim;
+    else delete kabulPlim.gemini;
+    if (temizG.hrSn > 0) gelenHaftaReset.gemini = temizG.hrSn;
+    else delete gelenHaftaReset.gemini;
+  } else {
+    delete gelenHaftaReset.gemini;
   }
   // Diskten okunan haftalık sıfırlama zamanı: yalnızca izinli, kayıtlı olduğu ofiste ve ortak hesabı kullanan cihazlar güncelleyebilir
   for (const sgl of SAGLAYICILAR) {
@@ -2183,8 +2359,15 @@ async function handleWeek(env, url, ctx) {
     return json({ ...onbellekKaydi.veri, now });
   }
 
-  const sorguAlt = start === current ? Math.min(start, ...SAGLAYICILAR.map((s) => curMap[s])) : start;
+  const sorguAlt = start === current
+    ? Math.min(
+        start,
+        ...SAGLAYICILAR.map((s) => curMap[s]),
+        ...(saglayici === "gemini" ? [Math.floor((now - WEEK - 3600) / 3600) * 3600] : [])
+      )
+    : start;
   const sorguUst = start === current ? Math.max(end, ...SAGLAYICILAR.map((s) => curMap[s] + WEEK)) : end;
+  const gecmisWAlt = saglayici === "gemini" && start === current ? Math.min(start, now - WEEK) : start;
   const railFrom = Math.min(current - 11 * WEEK, start);
   const recentFrom = Math.floor(now / 3600) * 3600 - 47 * 3600;
   const liveFrom = Math.floor(now / 3600) * 3600 - 3600;
@@ -2228,15 +2411,15 @@ async function handleWeek(env, url, ctx) {
     // 5 saatlik pencere: son 6 saatin okumaları (cihaz sayısı x birkaç satır)
     claudeMu
       ? env.DB.prepare("SELECT device_id, t, h_pct, h_reset FROM limit_gecmis WHERE t >= ? AND h_pct IS NOT NULL AND h_reset > ?").bind(now - 6 * 3600, now).all()
-      : env.DB.prepare("SELECT device_id, t, h_pct, h_reset FROM saglayici_limit_gecmis WHERE saglayici = ? AND t >= ? AND h_pct IS NOT NULL AND h_reset > ?").bind(saglayici, now - 6 * 3600, now).all(),
+      : env.DB.prepare("SELECT device_id, t, h_pct, h_reset, ham FROM saglayici_limit_gecmis WHERE saglayici = ? AND t >= ? ORDER BY t DESC LIMIT 300").bind(saglayici, now - 6 * 3600).all(),
     // Fable yüzdesi panodan elle girilir: bu haftanın en yeni girişi (yalnızca Claude)
     claudeMu
       ? env.DB.prepare("SELECT t, ham FROM limit_gecmis WHERE t >= ? AND ham LIKE '%fable%' ORDER BY t DESC LIMIT 1").bind(current).first()
       : Promise.resolve(null),
-    // Gün seçimi için: haftanın limit okumaları (o günün sonundaki yüzde) ve Fable okumaları
+    // Gün seçimi için: haftanın limit okumaları (o günün sonundaki yüzde) ve Fable / Antigravity okumaları
     claudeMu
       ? env.DB.prepare("SELECT t, w_pct, w_reset FROM limit_gecmis WHERE t >= ? AND t < ? AND w_pct IS NOT NULL ORDER BY t LIMIT 5000").bind(start, end).all()
-      : env.DB.prepare("SELECT t, w_pct, w_reset FROM saglayici_limit_gecmis WHERE saglayici = ? AND t >= ? AND t < ? AND w_pct IS NOT NULL ORDER BY t LIMIT 5000").bind(saglayici, start, end).all(),
+      : env.DB.prepare("SELECT device_id, t, w_pct, w_reset, ham FROM saglayici_limit_gecmis WHERE saglayici = ? AND t >= ? AND t < ? ORDER BY t LIMIT 5000").bind(saglayici, gecmisWAlt, end).all(),
     claudeMu
       ? env.DB.prepare("SELECT t, ham FROM limit_gecmis WHERE t >= ? AND t < ? AND ham LIKE '%fable%' ORDER BY t LIMIT 3000").bind(start, end).all()
       : Promise.resolve({ results: [] }),
@@ -2291,7 +2474,23 @@ async function handleWeek(env, url, ctx) {
   }
 
   const tabanT = (ayar && ayar.limit_taban_t) || 0;
-  const etkinW = etkinHafta(gecmisW.results, tabanT);
+  const gecmisHaftaSatirlar = claudeMu
+    ? gecmisW.results
+    : gecmisW.results.filter((r) => r.t >= start && r.w_pct !== null);
+  const etkinW = etkinHafta(gecmisHaftaSatirlar, tabanT);
+  const etkinG = saglayici === "gemini"
+    ? etkinHamHafta(gecmisW.results.filter((r) => r.t >= start), "agy_gemini", tabanT)
+    : null;
+  const etkinC = saglayici === "gemini"
+    ? etkinHamHafta(
+        gecmisW.results.filter((r) => (start === current ? true : r.t >= start)),
+        "agy_claude",
+        tabanT,
+        start === current ? now : 0
+      )
+    : null;
+  const anaEtkinW = etkinW || etkinG;
+
   // Fable serisi: elle girilir; her girişte değer neyse o (düzeltme için düşebilir)
   const fseri = [];
   for (const r of fableW.results) {
@@ -2312,19 +2511,95 @@ async function handleWeek(env, url, ctx) {
     } catch {}
   }
   // pct/set_at: limit_log (veya sıfırlama saati/modu değiştiğinde anında etkinW). 5 saatlik: aynı h_reset'teki en büyük okuma, yalnızca h_reset > şimdi.
-  const sonManuel5 = h5rows.results.reduce((mx, r) => (r.device_id === "" && r.t > mx ? r.t : mx), 0);
-  const h5Filtreli = sonManuel5 ? h5rows.results.filter((r) => r.t >= sonManuel5) : h5rows.results;
-  const e5 = start === current ? etkin5(h5Filtreli, now) : null;
-  const limitOut = lim || ham || etkinW || e5
+  const h5AnaSatirlar = claudeMu
+    ? h5rows.results
+    : h5rows.results.filter((r) => r.h_pct !== null && r.h_reset > now);
+  const sonManuel5 = h5AnaSatirlar.reduce((mx, r) => (r.device_id === "" && r.t > mx ? r.t : mx), 0);
+  const h5Filtreli = sonManuel5 ? h5AnaSatirlar.filter((r) => r.t >= sonManuel5) : h5AnaSatirlar;
+  const eG5 = saglayici === "gemini" && start === current ? etkinHam5(h5rows.results, "agy_gemini_5h", now) : null;
+  const eC5 = saglayici === "gemini" && start === current ? etkinHam5(h5rows.results, "agy_claude_5h", now) : null;
+  const e5 = start === current ? (saglayici === "gemini" ? (eG5 || etkin5(h5Filtreli, now)) : etkin5(h5Filtreli, now)) : null;
+
+  let agy3pPencere = null;
+  if (saglayici === "gemini" && start === current && etkinC && Number.isFinite(etkinC.wr)) {
+    const cSon = etkinC.wr;
+    const cBas = cSon - WEEK;
+    const cAltSaat = Math.floor(cBas / 3600) * 3600;
+    const byDeviceUsd = {};
+    const byDeviceTok = {};
+    let usd = 0, tok = 0;
+    for (const r of hourly.results) {
+      if (!devIds.has(r.device_id) || !gemini3pModelMi(r.model)) continue;
+      if (r.hour < cAltSaat || r.hour >= cSon) continue;
+      const c = costOf(r);
+      const t = r.input + r.output + r.cw5m + r.cw1h + r.cr;
+      byDeviceUsd[r.device_id] = (byDeviceUsd[r.device_id] || 0) + c;
+      byDeviceTok[r.device_id] = (byDeviceTok[r.device_id] || 0) + t;
+      usd += c;
+      tok += t;
+    }
+    agy3pPencere = { bas: cBas, son: cSon, usd, tok, byDeviceUsd, byDeviceTok };
+  }
+
+  if (saglayici === "gemini" && start === current && (anaEtkinW || etkinC || eG5 || eC5)) {
+    ham = ham ? { ...ham } : {};
+    // Ham objede tek bir cihazın eski/kısmi görüntüsü yerine ofisin birleştirilmiş etkin havuzlarını yansıt:
+    delete ham["agy_gemini.used_percentage"];
+    delete ham["agy_gemini.resets_at"];
+    delete ham["agy_claude.used_percentage"];
+    delete ham["agy_claude.resets_at"];
+    delete ham["agy_gemini_5h.used_percentage"];
+    delete ham["agy_gemini_5h.resets_at"];
+    delete ham["agy_claude_5h.used_percentage"];
+    delete ham["agy_claude_5h.resets_at"];
+    if (!ham.manual) {
+      delete ham["seven_day.used_percentage"];
+      delete ham["seven_day.resets_at"];
+    }
+    if (anaEtkinW) {
+      ham["agy_gemini.used_percentage"] = anaEtkinW.pct;
+      ham["agy_gemini.resets_at"] = anaEtkinW.wr;
+      if (!ham.manual) {
+        ham["seven_day.used_percentage"] = anaEtkinW.pct;
+        ham["seven_day.resets_at"] = anaEtkinW.wr;
+      }
+    }
+    if (etkinC) {
+      ham["agy_claude.used_percentage"] = etkinC.pct;
+      ham["agy_claude.resets_at"] = etkinC.wr;
+    }
+    if (eG5) {
+      ham["agy_gemini_5h.used_percentage"] = eG5.pct;
+      ham["agy_gemini_5h.resets_at"] = eG5.reset;
+    }
+    if (eC5) {
+      ham["agy_claude_5h.used_percentage"] = eC5.pct;
+      ham["agy_claude_5h.resets_at"] = eC5.reset;
+    }
+  }
+
+  const limitOut = lim || ham || anaEtkinW || etkinC || e5 || eC5
     ? {
-        seri: etkinW ? etkinW.seri : [],
+        seri: anaEtkinW ? anaEtkinW.seri : [],
         fseri,
         ft: start === current && fableOkuma ? fableOkuma.t : null,
-        pct: lim ? lim.pct : (etkinW ? etkinW.pct : null),
-        set_at: lim ? lim.set_at : (etkinW ? etkinW.set_at : null),
+        pct: lim ? lim.pct : (anaEtkinW ? anaEtkinW.pct : null),
+        set_at: lim ? lim.set_at : (anaEtkinW ? anaEtkinW.set_at : (etkinC ? etkinC.set_at : null)),
         h: e5 ? e5.pct : null,
         hr: e5 ? e5.reset : null,
-        wr: ham && Number.isFinite(ham["seven_day.resets_at"]) ? ham["seven_day.resets_at"] : (etkinW ? etkinW.wr : hsBilgi.sonrakiReset),
+        wr: saglayici === "gemini"
+          ? (anaEtkinW ? anaEtkinW.wr : hsBilgi.sonrakiReset)
+          : (ham && Number.isFinite(ham["seven_day.resets_at"]) ? ham["seven_day.resets_at"] : (anaEtkinW ? anaEtkinW.wr : hsBilgi.sonrakiReset)),
+        ...(saglayici === "gemini"
+          ? {
+              cpct: etkinC ? etkinC.pct : null,
+              cr: etkinC ? etkinC.wr : null,
+              cseri: etkinC ? etkinC.seri : [],
+              c5: eC5 ? eC5.pct : null,
+              c5r: eC5 ? eC5.reset : null,
+              agy3pPencere,
+            }
+          : {}),
         elle: !!(ham && ham.manual),
         ham,
       }
@@ -2488,16 +2763,21 @@ async function handleLimitAnaliz(env, url, ctx) {
   const taban = (ayar && ayar.limit_taban_t) || 0;
   const etkin = etkinHafta(gecmis.results, taban);
   const adlar = new Map(devices.results.map((d) => [d.id, d.label]));
-  // Saatlik toplamlar: Fable'lı ve Fable'sız USD ayrı tutulur
+  // Saatlik toplamlar: ana havuz (Claude'da Fable hariç, Gemini'de Claude & GPT hariç) ve tüm modeller ayrı tutulur
   const saat = new Map();
   for (const r of saatlik.results) {
     if (!sglOk(r)) continue;
     let h = saat.get(r.hour);
-    if (!h) saat.set(r.hour, (h = { hour: r.hour, usd: 0, usd_fablesiz: 0, tok: 0, input: 0, output: 0, cw: 0, cr: 0 }));
+    if (!h) saat.set(r.hour, (h = { hour: r.hour, usd: 0, usd_fablesiz: 0, tok: 0, tok_ana: 0, input: 0, output: 0, cw: 0, cr: 0 }));
     const c = costOf(r);
+    const t = r.input + r.output + r.cw5m + r.cw1h + r.cr;
+    const anaModelMi = saglayici === "gemini" ? !gemini3pModelMi(r.model) : !/fable/i.test(r.model);
     h.usd += c;
-    if (!/fable/i.test(r.model)) h.usd_fablesiz += c;
-    h.tok += r.input + r.output + r.cw5m + r.cw1h + r.cr;
+    h.tok += t;
+    if (anaModelMi) {
+      h.usd_fablesiz += c;
+      h.tok_ana += t;
+    }
     h.input += r.input; h.output += r.output; h.cw += r.cw5m + r.cw1h; h.cr += r.cr;
   }
   const weeks = new Map();
@@ -2900,6 +3180,7 @@ async function handleAdmin(req, env, path, url, erisim) {
         env.DB.prepare("DELETE FROM saglayici_limit_log WHERE saglayici = ? AND week = ?").bind(sgl, wk),
         saglayiciLimitLogYenile(env, sgl, wk),
       ]);
+      okumaOnbellekTemizle(false);
       return json({ tamam: true });
     }
     if (typeof b.pct !== "number" || !Number.isFinite(b.pct) || b.pct < 0 || b.pct > 100) {
@@ -2922,6 +3203,7 @@ async function handleAdmin(req, env, path, url, erisim) {
         .bind(sgl, wk, pct, now)
     );
     await env.DB.batch(stmts);
+    okumaOnbellekTemizle(false);
     return json({ tamam: true });
   }
   // Ortak hesap kilidini sıfırla: bir sonraki gönderimde gelen ilk geçerli hesap yeni ortak hesap olur.

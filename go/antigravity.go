@@ -34,7 +34,7 @@ import (
 )
 
 const (
-	agyVarsayilanModel = "agy-gemini"
+	agyVarsayilanModel = "agy-gemini-4-argon"
 	agyAzamiDosya      = 512 << 20 // 512 MB üstü dökümler atlanır
 	agyAzamiSatir      = 16 << 20  // tek satır sınırı
 	agyAzamiVscdb      = 64 << 20  // 64 MB üstü state.vscdb dosyaları güvenlik için atlanır
@@ -101,7 +101,7 @@ func agyUygulamaDizinleri() []string {
 func agySeviyeEkiTemizle(s string) string {
 	for {
 		degisti := false
-		for _, ek := range []string{"-tiered", "-medium", "-high", "-low", "-thinking", "-minimal"} {
+		for _, ek := range []string{"-tiered", "-medium", "-high", "-low", "-thinking", "-minimal", "-maas"} {
 			if strings.HasSuffix(s, ek) && len(s) > len(ek)+2 {
 				s = strings.TrimSuffix(s, ek)
 				degisti = true
@@ -128,12 +128,18 @@ func agyGorunenModelAd(goruntu string) string {
 	switch s {
 	case "gemini 4 carbon", "gemini-4-carbon":
 		return "agy-gemini-4-carbon"
-	case "gemini 4 argon", "gemini-4-argon":
+	case "gemini 4 argon", "gemini-4-argon", "gemini":
 		return "agy-gemini-4-argon"
 	case "gemini 3.8 flash", "gemini-3.8-flash":
 		return "agy-gemini-3.8-flash"
+	case "gemini 3.7 flash", "gemini-3.7-flash":
+		return "agy-gemini-3.7-flash"
+	case "gemini 3.6 flash", "gemini-3.6-flash":
+		return "agy-gemini-3.6-flash"
 	case "gemini 3.5 flash", "gemini-3.5-flash":
 		return "agy-gemini-3.5-flash"
+	case "gemini 3.5 flash lite", "gemini 3.5 flash-lite", "gemini-3.5-flash-lite":
+		return "agy-gemini-3.5-flash-lite"
 	case "gemini 3.1 pro", "gemini-3.1-pro":
 		return "agy-gemini-3.1-pro"
 	case "gemini 3.1 flash lite", "gemini 3.1 flash-lite", "gemini-3.1-flash-lite":
@@ -154,15 +160,20 @@ func agyGorunenModelAd(goruntu string) string {
 		return "agy-claude-sonnet-4-5"
 	case "claude haiku 4.5", "claude-haiku-4-5":
 		return "agy-claude-haiku-4-5"
+	case "gpt-oss 120b", "gpt-oss-120b", "openai/gpt-oss-120b-maas":
+		return "agy-gpt-oss-120b"
+	case "gpt-oss 20b", "gpt-oss-20b", "openai/gpt-oss-20b-maas":
+		return "agy-gpt-oss-20b"
 	}
 	s = strings.TrimPrefix(s, "agy-")
 	s = strings.TrimPrefix(s, "models/")
+	s = strings.TrimPrefix(s, "openai/")
 	if strings.HasPrefix(s, "claude") {
 		s = strings.ReplaceAll(s, ".", "-")
 	}
 	m := modelTemizle(strings.ReplaceAll(s, " ", "-"))
 	m = agySeviyeEkiTemizle(m)
-	if m == "" {
+	if m == "" || m == "gemini" {
 		return ""
 	}
 	m = "agy-" + m
@@ -192,12 +203,13 @@ func agyEnumModelAd(enumID uint64) string {
 		return "agy-claude-opus-4-6"
 	case 1035:
 		return "agy-claude-sonnet-4-6"
+	case 1342:
+		return "agy-gpt-oss-120b"
 	}
 	return ""
 }
 
-// agyModelAd: "Claude Opus 5.5 (Medium)" -> "agy-claude-opus-5-5"; "Gemini 4 Carbon (High)" -> "agy-gemini-4-carbon"
-func agyModelAd(goruntu string) string {
+func agyModelCozVeyaBos(goruntu string) string {
 	s := strings.TrimSpace(goruntu)
 	s = strings.Trim(s, "`\"'")
 	if i := strings.Index(s, "("); i >= 0 {
@@ -206,16 +218,15 @@ func agyModelAd(goruntu string) string {
 	alt := strings.ToLower(s)
 	alt = strings.TrimPrefix(alt, "models/")
 	alt = strings.TrimPrefix(alt, "agy-")
+	alt = strings.TrimPrefix(alt, "openai/")
 	if alt == "" || alt == "none" || alt == "null" || alt == "auto" || alt == "default" || alt == "unknown" {
-		return agyVarsayilanModel
+		return ""
 	}
 	if strings.HasPrefix(alt, "model_placeholder_m") {
 		if n, err := strconv.ParseUint(strings.TrimPrefix(alt, "model_placeholder_m"), 10, 64); err == nil {
-			if em := agyEnumModelAd(1000 + n); em != "" {
-				return em
-			}
+			return agyEnumModelAd(1000 + n)
 		}
-		return agyVarsayilanModel
+		return ""
 	}
 	switch alt {
 	case "gemini-3-flash-a", "gemini-3-flash-b", "gemini-default":
@@ -224,6 +235,10 @@ func agyModelAd(goruntu string) string {
 		return "agy-gemini-3.1-pro"
 	case "gemini-3.8-flash-tiered":
 		return "agy-gemini-3.8-flash"
+	case "gpt-oss-120b-maas":
+		return "agy-gpt-oss-120b"
+	case "gpt-oss-20b-maas":
+		return "agy-gpt-oss-20b"
 	}
 	if g := agyGorunenModelAd(s); g != "" {
 		return g
@@ -233,8 +248,8 @@ func agyModelAd(goruntu string) string {
 	}
 	m := modelTemizle(strings.ReplaceAll(alt, " ", "-"))
 	m = agySeviyeEkiTemizle(m)
-	if m == "" {
-		return agyVarsayilanModel
+	if m == "" || m == "gemini" {
+		return ""
 	}
 	m = "agy-" + m
 	if len(m) > 60 {
@@ -243,31 +258,20 @@ func agyModelAd(goruntu string) string {
 	return m
 }
 
+// agyModelAd: "Claude Opus 5.5 (Medium)" -> "agy-claude-opus-5-5"; "Gemini 4 Carbon (High)" -> "agy-gemini-4-carbon"
+func agyModelAd(goruntu string) string {
+	if m := agyModelCozVeyaBos(goruntu); m != "" {
+		return m
+	}
+	return agyVarsayilanModel
+}
+
 func agyGenMetaModelCoz(display, canon string, enumID uint64) string {
 	if m := agyGorunenModelAd(display); m != "" {
 		return m
 	}
-	c := strings.ToLower(strings.TrimSpace(canon))
-	c = strings.Trim(c, "`\"'")
-	c = strings.TrimPrefix(c, "models/")
-	switch c {
-	case "gemini-3-flash-a", "gemini-3-flash-b", "gemini-default":
-		return "agy-gemini-3.5-flash"
-	case "gemini-pro-a", "gemini-pro-b":
-		return "agy-gemini-3.1-pro"
-	case "gemini-3.8-flash-tiered":
-		return "agy-gemini-3.8-flash"
-	}
-	if c != "" && c != "none" && c != "null" && c != "auto" && c != "default" && c != "unknown" {
-		if strings.HasPrefix(c, "model_placeholder_m") {
-			if n, err := strconv.ParseUint(strings.TrimPrefix(c, "model_placeholder_m"), 10, 64); err == nil {
-				if em := agyEnumModelAd(1000 + n); em != "" {
-					return em
-				}
-			}
-		} else if m := agyModelAd(c); m != "" && m != agyVarsayilanModel {
-			return m
-		}
+	if m := agyModelCozVeyaBos(canon); m != "" {
+		return m
 	}
 	return agyEnumModelAd(enumID)
 }
@@ -1600,7 +1604,7 @@ func agyUserStatusCoz(disB64 []byte, mtSn, simdi int64) (eposta string, limitR m
 						if gecerli && resetSn > mtSn {
 							sure := resetSn - mtSn
 							geminiMi := strings.Contains(etiket, "gemini")
-							ucpMi := strings.Contains(etiket, "claude") || strings.Contains(etiket, "gpt") ||
+							ucpMi := strings.Contains(etiket, "claude") || strings.Contains(etiket, "gpt") || strings.Contains(etiket, "openai") ||
 								strings.Contains(etiket, "sonnet") || strings.Contains(etiket, "opus") || strings.Contains(etiket, "haiku")
 
 							if sure > 8*3600 && sure <= 14*86400 && (simdi <= 0 || simdi-resetSn <= 14*86400) {
@@ -1608,7 +1612,7 @@ func agyUserStatusCoz(disB64 []byte, mtSn, simdi int64) (eposta string, limitR m
 									if resetSn > gecmisGemWReset {
 										gecmisGemWReset = resetSn
 									}
-								} else if resetSn > gecmisGenelWReset {
+								} else if !ucpMi && resetSn > gecmisGenelWReset {
 									gecmisGenelWReset = resetSn
 								}
 							}
@@ -1650,12 +1654,8 @@ func agyUserStatusCoz(disB64 []byte, mtSn, simdi int64) (eposta string, limitR m
 
 	rm := map[string]string{}
 	anaW := gemW
-	if !anaW.varMi {
-		if genelW.varMi {
-			anaW = genelW
-		} else {
-			anaW = ucpW
-		}
+	if !anaW.varMi && genelW.varMi {
+		anaW = genelW
 	}
 	if anaW.varMi {
 		rm["seven_day.used_percentage"] = strconv.FormatFloat(anaW.pct, 'f', -1, 64)
@@ -1668,12 +1668,8 @@ func agyUserStatusCoz(disB64 []byte, mtSn, simdi int64) (eposta string, limitR m
 	}
 
 	ana5 := gem5
-	if !ana5.varMi {
-		if genel5.varMi {
-			ana5 = genel5
-		} else {
-			ana5 = ucp5
-		}
+	if !ana5.varMi && genel5.varMi {
+		ana5 = genel5
 	}
 	if ana5.varMi {
 		rm["five_hour.used_percentage"] = strconv.FormatFloat(ana5.pct, 'f', -1, 64)
@@ -1683,9 +1679,6 @@ func agyUserStatusCoz(disB64 []byte, mtSn, simdi int64) (eposta string, limitR m
 	if gemW.varMi {
 		rm["agy_gemini.used_percentage"] = strconv.FormatFloat(gemW.pct, 'f', -1, 64)
 		rm["agy_gemini.resets_at"] = strconv.FormatInt(gemW.reset, 10)
-	} else if gem5.varMi {
-		rm["agy_gemini.used_percentage"] = strconv.FormatFloat(gem5.pct, 'f', -1, 64)
-		rm["agy_gemini.resets_at"] = strconv.FormatInt(gem5.reset, 10)
 	}
 	if gem5.varMi {
 		rm["agy_gemini_5h.used_percentage"] = strconv.FormatFloat(gem5.pct, 'f', -1, 64)
@@ -1695,9 +1688,6 @@ func agyUserStatusCoz(disB64 []byte, mtSn, simdi int64) (eposta string, limitR m
 	if ucpW.varMi {
 		rm["agy_claude.used_percentage"] = strconv.FormatFloat(ucpW.pct, 'f', -1, 64)
 		rm["agy_claude.resets_at"] = strconv.FormatInt(ucpW.reset, 10)
-	} else if ucp5.varMi {
-		rm["agy_claude.used_percentage"] = strconv.FormatFloat(ucp5.pct, 'f', -1, 64)
-		rm["agy_claude.resets_at"] = strconv.FormatInt(ucp5.reset, 10)
 	}
 	if ucp5.varMi {
 		rm["agy_claude_5h.used_percentage"] = strconv.FormatFloat(ucp5.pct, 'f', -1, 64)
@@ -1723,10 +1713,7 @@ func agyDurumAdaylariOku(simdi int64) []agyDurumAdayi {
 		if simdi > 0 && mtSn > simdi {
 			mtSn = simdi
 		}
-		var hReset int64
-		if agyLim.HaftaReset > 0 && (simdi <= 0 || simdi-mtSn <= 14*86400) {
-			hReset = sonrakiHaftaReset(agyLim.HaftaReset, simdi)
-		}
+		hReset := agyHaftaResetTemizle(agyLim, simdi)
 		aktifR := agyLimitAktifFiltrele(agyLim, simdi)
 		if agyLim.Eposta != "" || len(aktifR) > 0 || hReset > 0 {
 			aday := agyDurumAdayi{

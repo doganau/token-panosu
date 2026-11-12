@@ -210,7 +210,7 @@ test("kurulum-paket, eşleştirme (kurulum + onarım) ve cihaz izin güncellemes
     new Request(`${TEST_ORIGIN}/api/yonetim/kod`, {
       method: "POST",
       headers: { "content-type": "application/json", origin: TEST_ORIGIN, cookie: cerez },
-      body: JSON.stringify({ label: "Buket MacBook", izinli_saglayici: ["claude", "gemini"] }),
+      body: JSON.stringify({ label: "Deniz MacBook", izinli_saglayici: ["claude", "gemini"] }),
     }),
     env,
     bosCtx
@@ -365,27 +365,27 @@ test("handleIngest: izinli_saglayici filtreleme, v31->v40 Carbon çift sayım ö
 
     const devA = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
     const secA = "aa".repeat(32);
-    const devOguz = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
-    const secOguz = "bb".repeat(32);
+    const devMert = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+    const secMert = "bb".repeat(32);
 
-    // A cihazı "cm" (yalnızca Claude + Gemini), B cihazı (Oğuz) henüz v20'de
+    // A cihazı "cm" (yalnızca Claude + Gemini), B cihazı (Mert) henüz v20'de
     env.DB.sqlite
       .prepare(
         "INSERT INTO devices (id, label, secret, created_at, client_ver, izinli_saglayici) VALUES (?,?,?,?,?,?), (?,?,?,?,?,?)"
       )
-      .run(devA, "Alper Mac", secA, now - 1000, 31, "cm", devOguz, "Oğuz Mac", secOguz, now - 1000, 20, "cgm");
+      .run(devA, "Ece Mac", secA, now - 1000, 31, "cm", devMert, "Mert Mac", secMert, now - 1000, 20, "cgm");
 
     // ChatGPT için farklı bir ortak hesap kilidi tanımlayalım: A cihazında ChatGPT izinsiz olduğundan
     // A cihazından yanlışlıkla ChatGPT hesabı gelse bile kilit uyuşmazlığı tetiklememeli ve satırı düşürmeli!
     env.DB.sqlite
       .prepare("INSERT INTO hesap_kilit (saglayici, hesap_ozet, eposta, etiket, kilitlendi_at, cihaz_id) VALUES (?,?,?,?,?,?)")
-      .run("chatgpt", "ffffffffffffffff", "ortak-gpt@ornek.com", "Ortak", now - 500, devOguz);
+      .run("chatgpt", "ffffffffffffffff", "ortak-gpt@ornek.com", "Ortak", now - 500, devMert);
 
-    // 1) Oğuz'un v20 mühürsüz betiği geçiş aşamasında (enDusuk < 40 iken) kabul edilmeli!
-    const oguzRes1 = await worker.fetch(
+    // 1) Mert'in v20 mühürsüz betiği geçiş aşamasında (enDusuk < 40 iken) kabul edilmeli!
+    const mertRes1 = await worker.fetch(
       await gonderIstegiOlustur({
-        device: devOguz,
-        secret: secOguz,
+        device: devMert,
+        secret: secMert,
         ts: now - 30,
         clientVer: 20,
         bodyObj: {
@@ -398,7 +398,7 @@ test("handleIngest: izinli_saglayici filtreleme, v31->v40 Carbon çift sayım ö
       env,
       bosCtx
     );
-    assert.equal(oguzRes1.status, 200);
+    assert.equal(mertRes1.status, 200);
 
     // 2) A cihazı önce v31 (geçerli gecmis["31"] mührüyle) "agy-gemini" + izinsiz "gpt-5" satırı yollar:
     //    - v31 kabul edilmeli
@@ -520,7 +520,7 @@ test("handleIngest: izinli_saglayici filtreleme, v31->v40 Carbon çift sayım ö
       "İzinsiz sağlayıcı için hesap kilidi uyarısı oluşmamalı"
     );
 
-    // Oğuz hâlâ v20'de olduğu için muhurZorunlu henüz devreye girmemiş olmalı:
+    // Mert hâlâ v20'de olduğu için muhurZorunlu henüz devreye girmemiş olmalı:
     const haftaRes1 = await worker.fetch(
       new Request(`${TEST_ORIGIN}/api/hafta?saglayici=gemini`, { headers: { cookie: cerez } }),
       env,
@@ -533,11 +533,11 @@ test("handleIngest: izinli_saglayici filtreleme, v31->v40 Carbon çift sayım ö
     assert.equal(devAOut.izinli_saglayici, "cm");
     assert.equal(devAOut.calisan_paket, "cm");
 
-    // 5) Şimdi Oğuz da v40'a yükseltilir -> TÜM cihazlar >=40 olduğu anda muhurZorunlu = true ve zorunluMinSurum = 40 kilitlenir!
-    const oguzV40Res = await worker.fetch(
+    // 5) Şimdi Mert da v40'a yükseltilir -> TÜM cihazlar >=40 olduğu anda muhurZorunlu = true ve zorunluMinSurum = 40 kilitlenir!
+    const mertV40Res = await worker.fetch(
       await gonderIstegiOlustur({
-        device: devOguz,
-        secret: secOguz,
+        device: devMert,
+        secret: secMert,
         ts: now - 5,
         clientVer: 40,
         target: "darwin-arm64",
@@ -547,13 +547,13 @@ test("handleIngest: izinli_saglayici filtreleme, v31->v40 Carbon çift sayım ö
       env,
       bosCtx
     );
-    assert.equal(oguzV40Res.status, 200);
+    assert.equal(mertV40Res.status, 200);
 
     // Artık v20 de, eski v31 de kesin olarak 403 ile reddedilmeli!
     const eskiV20Red = await worker.fetch(
       await gonderIstegiOlustur({
-        device: devOguz,
-        secret: secOguz,
+        device: devMert,
+        secret: secMert,
         ts: now - 3,
         clientVer: 20,
         bodyObj: { v: 2, s: 20, o: "Darwin", rows: [] },
@@ -639,5 +639,208 @@ test("GET /api/sistem-guncelleme GitHub sürüm kontrolünü önbellekler ve çe
     assert.equal(typeof j3.mevcut_surum, "number");
   } finally {
     globalThis.fetch = orijinalFetch;
+  }
+});
+
+test("Gemini ve Claude & GPT haftalık kota havuzları /api/gonder, /api/hafta ve /api/limit-analiz uçlarında tam yalıtılır", async () => {
+  const env = yeniOrtam();
+  const cerez = await kurVeGirisYap(env);
+  const eskiIkili = MANIFEST.ikili;
+  const eskiGecmis = MANIFEST.gecmis;
+
+  const shaV40Cm = "4".repeat(64);
+  const shaV41Cm = "5".repeat(64);
+  MANIFEST.ikili = {
+    surum: 41,
+    dosyalar: {
+      "darwin-arm64-cm": { sha256: shaV41Cm, boy: 2048 },
+    },
+  };
+  MANIFEST.gecmis = {
+    "40": { "darwin-arm64-cm": shaV40Cm },
+  };
+
+  try {
+    const uyeMertRes = await worker.fetch(
+      new Request(`${TEST_ORIGIN}/api/yonetim/uye`, {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie: cerez, origin: TEST_ORIGIN },
+        body: JSON.stringify({ ad: "Mert" }),
+      }),
+      env,
+      bosCtx
+    );
+    const uyeMert = (await uyeMertRes.json()).id;
+
+    const uyeDoganRes = await worker.fetch(
+      new Request(`${TEST_ORIGIN}/api/yonetim/uye`, {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie: cerez, origin: TEST_ORIGIN },
+        body: JSON.stringify({ ad: "Doğan" }),
+      }),
+      env,
+      bosCtx
+    );
+    const uyeDogan = (await uyeDoganRes.json()).id;
+
+    async function cihazEkle(label, uyeId) {
+      const kodRes = await worker.fetch(
+        new Request(`${TEST_ORIGIN}/api/yonetim/kod`, {
+          method: "POST",
+          headers: { "content-type": "application/json", cookie: cerez, origin: TEST_ORIGIN },
+          body: JSON.stringify({ label, uye_id: uyeId, izinli_saglayici: ["claude", "gemini"] }),
+        }),
+        env,
+        bosCtx
+      );
+      const { code } = await kodRes.json();
+      const sec = toHex(crypto.getRandomValues(new Uint8Array(32)));
+      const esRes = await worker.fetch(
+        new Request(`${TEST_ORIGIN}/api/eslestir`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ code, secret: sec }),
+        }),
+        env,
+        bosCtx
+      );
+      const { device_id } = await esRes.json();
+      return { id: device_id, sec };
+    }
+
+    const cMert = await cihazEkle("mert", uyeMert);
+    const cMac = await cihazEkle("MacBook Pro", uyeDogan);
+
+    const now = Math.floor(Date.now() / 1000);
+    const saatBasi = Math.floor(now / 3600) * 3600 - 3600;
+    const cumartesiReset = now + 2 * 86400; // 2 gün sonra (Gemini 7 günlük sıfırlama)
+    const saliReset = now + 5 * 86400; // 5 gün sonra (Claude & GPT 7 günlük sıfırlama)
+    const besSaatReset = now + 4 * 3600; // 4 saat sonra (5 saatlik pencere)
+
+    // 1) Mert (v41) gerçek Gemini haftalık kotasını (%71.4, Cumartesi sıfırlama) ve eski "agy-gemini" + "agy-gemini-4-carbon" satırlarını gönderir:
+    const rMert = await worker.fetch(
+      await gonderIstegiOlustur({
+        device: cMert.id,
+        secret: cMert.sec,
+        ts: now - 30,
+        clientVer: 41,
+        target: "darwin-arm64-cm",
+        exeSha: shaV41Cm,
+        bodyObj: {
+          v: 2,
+          s: 41,
+          o: "Darwin",
+          hesap: { gemini: "a1b2c3d4e5f60718" },
+          eposta: { gemini: "ortak@ornek.com" },
+          hr: { gemini: cumartesiReset },
+          lp: {
+            gemini: {
+              t: now - 30,
+              r: {
+                "seven_day.used_percentage": 71.4,
+                "seven_day.resets_at": cumartesiReset,
+                "agy_gemini.used_percentage": 71.4,
+                "agy_gemini.resets_at": cumartesiReset,
+              },
+            },
+          },
+          rows: [
+            { h: saatBasi, model: "agy-gemini", sid: "1111111111111111", input: 100_000, output: 10_000, cw5m: 0, cw1h: 0, cr: 0, messages: 2 },
+            { h: saatBasi, model: "agy-gemini-4-carbon", sid: "2222222222222222", input: 500_000, output: 50_000, cw5m: 0, cw1h: 0, cr: 0, messages: 5 },
+          ],
+        },
+      }),
+      env,
+      bosCtx
+    );
+    assert.equal(rMert.status, 200);
+
+    // "agy-gemini" veritabanına asla ham yazılmamalı, "agy-gemini-4-argon" olarak birleştirilmeli:
+    const mertModeller = env.DB.sqlite.prepare("SELECT model FROM usage_h WHERE device_id = ? ORDER BY model").all(cMert.id).map((x) => x.model);
+    assert.deepEqual(mertModeller, ["agy-gemini-4-argon", "agy-gemini-4-carbon"]);
+
+    // 2) MacBook Pro (henüz v40) 5 saatlik Gemini (%2.3) + 7 günlük Claude & GPT (%97.7, Salı sıfırlama) sızıntılı yükünü gönderir:
+    const rMac = await worker.fetch(
+      await gonderIstegiOlustur({
+        device: cMac.id,
+        secret: cMac.sec,
+        ts: now - 10,
+        clientVer: 40,
+        target: "darwin-arm64-cm",
+        exeSha: shaV40Cm,
+        bodyObj: {
+          v: 2,
+          s: 40,
+          o: "Darwin",
+          hesap: { gemini: "a1b2c3d4e5f60718" },
+          eposta: { gemini: "ortak@ornek.com" },
+          hr: { gemini: saliReset },
+          lp: {
+            gemini: {
+              t: now - 10,
+              r: {
+                "five_hour.used_percentage": 2.3,
+                "five_hour.resets_at": besSaatReset,
+                "seven_day.used_percentage": 97.7,
+                "seven_day.resets_at": saliReset,
+                "agy_gemini.used_percentage": 2.3,
+                "agy_gemini.resets_at": besSaatReset,
+                "agy_gemini_5h.used_percentage": 2.3,
+                "agy_gemini_5h.resets_at": besSaatReset,
+                "agy_claude.used_percentage": 97.7,
+                "agy_claude.resets_at": saliReset,
+              },
+            },
+          },
+          rows: [
+            { h: saatBasi, model: "agy-claude-opus-5-5", sid: "3333333333333333", input: 1_000_000, output: 100_000, cw5m: 0, cw1h: 0, cr: 0, messages: 8 },
+            { h: saatBasi, model: "agy-gpt-oss-120b", sid: "4444444444444444", input: 200_000, output: 50_000, cw5m: 0, cw1h: 0, cr: 0, messages: 3 },
+          ],
+        },
+      }),
+      env,
+      bosCtx
+    );
+    assert.equal(rMac.status, 200);
+
+    // oto_hafta_sifirlama.gemini Salı'ya (saliReset) kaymamalı, Mert'in Cumartesi sıfırlamasında kalmalı!
+    const otoRow = env.DB.sqlite.prepare("SELECT reset_at FROM oto_hafta_sifirlama WHERE saglayici = 'gemini'").get();
+    assert.ok(Math.abs(otoRow.reset_at - cumartesiReset) < 60, `Gemini sıfırlaması Salı'ya kaydı: ${otoRow.reset_at} vs ${cumartesiReset}`);
+
+    // /api/hafta?saglayici=gemini yanıtında ana Gemini yüzdesi %71.4, 5 saatlik %2.3 ve ayrı Claude & GPT yüzdesi %97.7 olmalı!
+    const haftaRes = await worker.fetch(
+      new Request(`${TEST_ORIGIN}/api/hafta?saglayici=gemini`, { headers: { cookie: cerez } }),
+      env,
+      bosCtx
+    );
+    assert.equal(haftaRes.status, 200);
+    const hafta = await haftaRes.json();
+    assert.equal(hafta.limit.pct, 71.4);
+    assert.equal(hafta.limit.h, 2.3);
+    assert.equal(hafta.limit.cpct, 97.7);
+    assert.ok(hafta.limit.agy3pPencere);
+    assert.ok(hafta.limit.agy3pPencere.byDeviceUsd[cMac.id] > 5.9, "MacBook Pro Claude & GPT harcaması 3P penceresinde görünmeli");
+    assert.equal(hafta.limit.agy3pPencere.byDeviceUsd[cMert.id] || 0, 0, "Mert'in Gemini modelleri 3P penceresine girmemeli");
+
+    // /api/limit-analiz?saglayici=gemini saatlik toplamlarında usd_fablesiz yalnızca Gemini modellerini içermeli (Claude & GPT hariç):
+    const analizRes = await worker.fetch(
+      new Request(`${TEST_ORIGIN}/api/limit-analiz?saglayici=gemini`, { headers: { cookie: cerez } }),
+      env,
+      bosCtx
+    );
+    assert.equal(analizRes.status, 200);
+    const analiz = await analizRes.json();
+    assert.equal(analiz.etkin.pct, 71.4);
+    assert.equal(analiz.saatlik.length, 1);
+    const s0 = analiz.saatlik[0];
+    // Mert Gemini modelleri: 0.6M input * $2 + 0.06M output * $10 = $1.2 + $0.6 = $1.80
+    // MacBook Pro Claude Opus 5.5 (1M * $4 + 0.1M * $20 = $6.00) + GPT-OSS 120B (0.2M * $0.15 + 0.05M * $0.60 = $0.06) = $6.06
+    assert.ok(Math.abs(s0.usd_fablesiz - 1.8) < 1e-6, `Gemini modelleri USD 1.80 bekleniyordu, gelen: ${s0.usd_fablesiz}`);
+    assert.ok(Math.abs(s0.usd - 7.86) < 1e-6, `Toplam USD 7.86 bekleniyordu, gelen: ${s0.usd}`);
+    assert.equal(s0.tok_ana, 660_000);
+    assert.equal(s0.tok, 2_010_000);
+  } finally {
+    MANIFEST.ikili = eskiIkili;
+    MANIFEST.gecmis = eskiGecmis;
   }
 });
