@@ -1564,6 +1564,22 @@ dialog .actions { display: flex; gap: 10px; justify-content: flex-end; margin-to
 .agy-havuz-ust { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 12.5px; }
 .agy-havuz-ust b { color: var(--ink); font-size: 13.5px; }
 .agy-havuz-alt { font-size: 11.5px; color: var(--ink-3); }
+.agy-havuz-uyeler {
+  margin: 4px 0 0; padding: 6px 0 0; list-style: none;
+  border-top: 1px dashed var(--line); display: grid; gap: 3px;
+  font-size: 11.5px; color: var(--ink-2);
+}
+.agy-havuz-uyeler li { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.agy-havuz-uyeler li b { font-size: 11.5px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+.izin-alan { margin-top: 12px; padding: 10px 12px; border-radius: var(--r-sm); background: var(--surface-2); border: 1px solid var(--line); }
+.izin-alan-baslik { display: block; font-size: 13px; font-weight: 600; color: var(--ink-2); margin-bottom: 6px; }
+.izin-secim-satir { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.izin-chk { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--ink); cursor: pointer; margin: 0; }
+.izin-chk input[type="checkbox"] { width: 15px; height: 15px; min-block-size: 15px; padding: 0; margin: 0; accent-color: var(--accent); cursor: pointer; }
+.izin-not { margin: 6px 0 0; font-size: 12px; color: var(--ink-3); }
+.izin-inline-form { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 6px; }
+.izin-inline-form .izin-chk { font-size: 12px; font-weight: 500; color: var(--ink-2); }
 
 .cli-grid {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -1663,7 +1679,7 @@ const ICON = {
   claude: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" aria-hidden="true"><path d="M8 1.8v12.4M1.8 8h12.4M3.6 3.6l8.8 8.8M12.4 3.6l-8.8 8.8"/></svg>',
   chatgpt: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="5.7"/><polygon points="8,4.1 11.4,6.1 11.4,9.9 8,11.9 4.6,9.9 4.6,6.1"/></svg>',
   gemini: '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 1.3C8.5 5.2 10.8 7.5 14.7 8c-3.9.5-6.2 2.8-6.7 6.7C7.5 10.8 5.2 8.5 1.3 8 5.2 7.5 7.5 5.2 8 1.3Z"/></svg>',
-  shield: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 1.8 2.8 4v3.8c0 3.4 2.2 5.6 5.2 6.6 3-1 5.2-3.2 5.2-6.6V4L8 1.8Z"/><path d="m5.7 8.1 1.6 1.6 3.1-3.2"/></svg>',
+  shield: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;flex-shrink:0" aria-hidden="true"><path d="M8 1.8 2.8 4v3.8c0 3.4 2.2 5.6 5.2 6.6 3-1 5.2-3.2 5.2-6.6V4L8 1.8Z"/><path d="m5.7 8.1 1.6 1.6 3.1-3.2"/></svg>',
   settings: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="2.3"/><path d="M8 1.6v1.6M8 12.8v1.6M1.6 8h1.6M12.8 8h1.6M3.5 3.5l1.1 1.1M11.4 11.4l1.1 1.1M12.5 3.5l-1.1 1.1M4.6 11.4l-1.1 1.1"/></svg>',
   sun: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="3"/><path d="M8 1.6v1.7M8 12.7v1.7M1.6 8h1.7M12.7 8h1.7M3.5 3.5l1.2 1.2M11.3 11.3l1.2 1.2M12.5 3.5l-1.2 1.2M4.7 11.3l-1.2 1.2"/></svg>',
   moon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.4 9.8A5.6 5.6 0 0 1 6.2 2.6a5.7 5.7 0 1 0 7.2 7.2Z"/></svg>',
@@ -1703,11 +1719,190 @@ function urlKur(yol, { h, sgl } = {}) {
   const q = sp.toString();
   return q ? `${yol}?${q}` : yol;
 }
+const MODEL_AD_HARITASI = {
+  "agy-gemini": "Antigravity · Gemini",
+  "agy-gemini-4-carbon": "Antigravity · Gemini 4 Carbon",
+  "agy-gemini-4-argon": "Antigravity · Gemini 4 Argon",
+  "agy-gemini-3.8-flash": "Antigravity · Gemini 3.8 Flash",
+  "agy-gemini-3.5-flash": "Antigravity · Gemini 3.5 Flash",
+  "agy-gemini-3.1-pro": "Antigravity · Gemini 3.1 Pro",
+  "agy-gemini-3.1-flash-lite": "Antigravity · Gemini 3.1 Flash-Lite",
+  "agy-gemini-3-pro": "Antigravity · Gemini 3 Pro",
+  "agy-gemini-3-flash": "Antigravity · Gemini 3 Flash",
+  "agy-gemini-2.5-pro": "Antigravity · Gemini 2.5 Pro",
+  "agy-gemini-2.5-flash": "Antigravity · Gemini 2.5 Flash",
+  "agy-gemini-2.5-flash-lite": "Antigravity · Gemini 2.5 Flash-Lite",
+  "agy-claude-opus-5-5": "Antigravity · Claude Opus 5.5",
+  "agy-claude-sonnet-5-5": "Antigravity · Claude Sonnet 5.5",
+  "agy-claude-haiku-5-5": "Antigravity · Claude Haiku 5.5",
+  "agy-claude-opus-4-7": "Antigravity · Claude Opus 4.7",
+  "agy-claude-opus-4-6": "Antigravity · Claude Opus 4.6",
+  "agy-claude-sonnet-4-6": "Antigravity · Claude Sonnet 4.6",
+  "agy-claude-sonnet-4-5": "Antigravity · Claude Sonnet 4.5",
+  "agy-claude-haiku-4-5": "Antigravity · Claude Haiku 4.5",
+  "gemini-4-carbon": "Gemini 4 Carbon",
+  "gemini-4-argon": "Gemini 4 Argon",
+  "gemini-3.8-flash": "Gemini 3.8 Flash",
+  "gemini-3.5-flash": "Gemini 3.5 Flash",
+  "gemini-3.1-pro": "Gemini 3.1 Pro",
+  "gemini-3.1-flash-lite": "Gemini 3.1 Flash-Lite",
+  "gemini-3-pro": "Gemini 3 Pro",
+  "gemini-3-flash": "Gemini 3 Flash",
+  "gemini-2.5-pro": "Gemini 2.5 Pro",
+  "gemini-2.5-flash": "Gemini 2.5 Flash",
+  "gemini-2.5-flash-lite": "Gemini 2.5 Flash-Lite",
+  "claude-opus-5-5": "Opus 5.5",
+  "claude-sonnet-5-5": "Sonnet 5.5",
+  "claude-haiku-5-5": "Haiku 5.5",
+  "claude-fable-5-2": "Fable 5.2",
+  "claude-opus-4-7": "Opus 4.7",
+  "claude-opus-4-6": "Opus 4.6",
+  "claude-sonnet-4-6": "Sonnet 4.6",
+  "claude-sonnet-4-5": "Sonnet 4.5",
+  "claude-haiku-4-5": "Haiku 4.5",
+  "claude-opus-4-5": "Opus 4.5",
+  "claude-opus-4-1": "Opus 4.1",
+  "claude-opus-4-0": "Opus 4",
+  "claude-opus-4": "Opus 4",
+  "claude-sonnet-4-0": "Sonnet 4",
+  "claude-sonnet-4": "Sonnet 4",
+};
+function basHarfBuyut(k) {
+  return k ? k.charAt(0).toUpperCase() + k.slice(1) : "";
+}
 function modelKisaAd(m) {
-  const s = String(m || "");
-  if (s.startsWith("agy-")) return "Antigravity · " + s.slice(4);
-  if (s.startsWith("openai-")) return s.slice(7);
-  return s.replace(/^claude-/, "");
+  const ham = String(m || "").trim();
+  if (!ham) return "";
+  const uzun = ham.endsWith("@uzun");
+  let s = (uzun ? ham.slice(0, -5) : ham).toLowerCase();
+  s = s.replace(/-\d{8}$/, "").replace(/-20\d\d-\d\d-\d\d$/, "");
+  s = s.replace(/-preview(?:-[a-z0-9-]+)?$/, "");
+  s = s.replace(/-(?:tiered|medium|high|low|thinking|minimal)$/, "");
+  const ek = uzun ? " (>200k)" : "";
+  if (Object.hasOwn(MODEL_AD_HARITASI, s)) return MODEL_AD_HARITASI[s] + ek;
+  const agyClaude = s.match(/^agy-claude-(opus|sonnet|haiku|fable)-(\d+)(?:-(\d+))?$/);
+  if (agyClaude) return `Antigravity · Claude ${basHarfBuyut(agyClaude[1])} ${agyClaude[2]}${agyClaude[3] ? "." + agyClaude[3] : ""}${ek}`;
+  if (s.startsWith("agy-gemini-")) {
+    const parca = s.slice(11).replace(/flash-lite/g, "Flash-Lite").split("-").map((x) => (x === "Flash-Lite" ? x : /^\d/.test(x) ? x : basHarfBuyut(x))).join(" ");
+    return `Antigravity · Gemini ${parca}${ek}`;
+  }
+  const duzClaude = s.match(/^claude-(opus|sonnet|haiku|fable)-(\d+)(?:-(\d+))?$/);
+  if (duzClaude) return `${basHarfBuyut(duzClaude[1])} ${duzClaude[2]}${duzClaude[3] && duzClaude[3] !== "0" ? "." + duzClaude[3] : ""}${ek}`;
+  if (s.startsWith("gemini-")) {
+    const parca = s.slice(7).replace(/flash-lite/g, "Flash-Lite").split("-").map((x) => (x === "Flash-Lite" ? x : /^\d/.test(x) ? x : basHarfBuyut(x))).join(" ");
+    return `Gemini ${parca}${ek}`;
+  }
+  if (s.startsWith("agy-")) return "Antigravity · " + s.slice(4) + ek;
+  if (s.startsWith("openai-")) return s.slice(7) + ek;
+  return (uzun ? ham.slice(0, -5) : ham).replace(/^claude-/, "") + ek;
+}
+function agyClaudeHavuzuMu(m) {
+  const k = String(m || "").toLowerCase();
+  return k.startsWith("agy-claude-") || k.startsWith("agy-gpt-") || k.startsWith("agy-o");
+}
+const IZIN_SECENEKLERI = [
+  { harf: "c", id: "claude", ad: "Claude" },
+  { harf: "m", id: "gemini", ad: "Gemini" },
+  { harf: "g", id: "chatgpt", ad: "ChatGPT" },
+];
+function paketNormalizeUI(girdi) {
+  if (!girdi) return "";
+  const parcalar = Array.isArray(girdi) ? girdi : String(girdi).toLowerCase().trim().split(/[\s,+|;-]+/).filter(Boolean);
+  let c = false, g = false, m = false;
+  for (const p of parcalar) {
+    if (p === "claude") c = true;
+    else if (p === "chatgpt" || p === "openai" || p === "codex") g = true;
+    else if (p === "gemini" || p === "agy" || p === "antigravity") m = true;
+    else if (/^[cgm]+$/.test(p)) {
+      if (p.includes("c")) c = true;
+      if (p.includes("g")) g = true;
+      if (p.includes("m")) m = true;
+    }
+  }
+  return (c ? "c" : "") + (g ? "g" : "") + (m ? "m" : "");
+}
+function paketEtiketUI(paket) {
+  const p = paketNormalizeUI(paket) || "cgm";
+  if (p === "cgm") return "Claude + Gemini + ChatGPT";
+  const adlar = [];
+  if (p.includes("c")) adlar.push("Claude");
+  if (p.includes("m")) adlar.push("Gemini");
+  if (p.includes("g")) adlar.push("ChatGPT");
+  return "Sadece " + adlar.join(" + ");
+}
+function cihazIkiliRozetHTML(c) {
+  const izin = paketNormalizeUI(c && c.izinli_saglayici) || "cgm";
+  const calisan = paketNormalizeUI(c && c.calisan_paket);
+  const ver = c && c.client_ver ? `v${c.client_ver}` : "";
+  if (calisan && calisan === izin) {
+    return `<span class="pill pill-ok" data-ikili-rozet="${esc(c.id || "")}" title="Mühürlü gönderici ikilisi yalnızca seçili sağlayıcıların kodunu barındırır">${ICON.shield}<span>İkili: ${esc(ver || "v40")} · ${esc(paketEtiketUI(izin))}</span></span>`;
+  }
+  if (calisan && calisan !== izin) {
+    return `<span class="pill" data-ikili-rozet="${esc(c.id || "")}" title="Gönderici bir sonraki döngüde ikilisini otomatik değiştirecek"><span>İkili: ${esc(ver || "?")} · Güncelleniyor → ${esc(izin)}</span></span>`;
+  }
+  return `<span class="pill" data-ikili-rozet="${esc(c.id || "")}" title="İzin verilen veri sağlayıcıları"><span>İzin: ${esc(paketEtiketUI(izin))}${(c && c.client_ver >= 40) ? ` · Güncelleniyor → ${esc(izin)}` : ""}</span></span>`;
+}
+function saglayiciSecimAlanHTML(onek, seciliPaket = "cgm") {
+  const p = paketNormalizeUI(seciliPaket) || "cgm";
+  return `<div class="izin-alan" data-izin-kutu="${esc(onek)}">
+    <span class="izin-alan-baslik">İzin verilen veri sağlayıcıları</span>
+    <div class="izin-secim-satir">
+      ${IZIN_SECENEKLERI.map((s) => `<label class="izin-chk"><input type="checkbox" name="izin_${s.harf}" value="${s.harf}" data-izin-chk${p.includes(s.harf) ? " checked" : ""}><span>${esc(s.ad)}</span></label>`).join("")}
+    </div>
+    <p class="izin-not">Gönderici ikilisi yalnızca seçtiğiniz sağlayıcıların kodunu içerir; diğer sağlayıcıların okuma kodu bile indirilmez.</p>
+  </div>`;
+}
+function izinKutusuDegeriOku(kapsam) {
+  if (!kapsam) return "cgm";
+  const secili = [...kapsam.querySelectorAll("[data-izin-chk]:checked")].map((el) => el.value);
+  return paketNormalizeUI(secili);
+}
+function izinEnAzBirBagla(kapsam = document) {
+  kapsam.querySelectorAll("[data-izin-chk]").forEach((chk) => {
+    chk.addEventListener("change", () => {
+      const grup = chk.closest("[data-izin-kutu], [data-cihaz-izin-form]") || chk.form;
+      if (!grup) return;
+      const isaretliler = grup.querySelectorAll("[data-izin-chk]:checked");
+      if (isaretliler.length === 0) chk.checked = true;
+    });
+  });
+}
+function cihazIzinDuzenleyiciHTML(c) {
+  const izin = paketNormalizeUI(c && c.izinli_saglayici) || "cgm";
+  return `<form class="izin-inline-form" data-cihaz-izin-form="${esc(c.id)}" aria-label="${esc(c.label)} veri sağlayıcı izinleri">
+    ${IZIN_SECENEKLERI.map((s) => `<label class="izin-chk"><input type="checkbox" value="${s.harf}" data-izin-chk${izin.includes(s.harf) ? " checked" : ""}><span>${esc(s.ad)}</span></label>`).join("")}
+    <button type="submit" class="btn btn-plain btn-sm">Kaydet</button>
+    <span class="kayit-durum" data-cihaz-izin-durum style="font-size:12px" role="status" aria-live="polite"></span>
+  </form>`;
+}
+function cihazIzinBagla(kapsam, endpoint, sonrasi) {
+  izinEnAzBirBagla(kapsam);
+  kapsam.querySelectorAll("[data-cihaz-izin-form]").forEach((f) => {
+    f.onsubmit = async (ev) => {
+      ev.preventDefault();
+      const id = f.dataset.cihazIzinForm;
+      const yeniPaket = izinKutusuDegeriOku(f);
+      const dr = $("[data-cihaz-izin-durum]", f);
+      if (!yeniPaket) { durumYaz(dr, "En az bir sağlayıcı seçilmeli.", true); return; }
+      const btn = $("button[type=submit]", f);
+      if (btn) btn.disabled = true;
+      durumYaz(dr, "Kaydediliyor…");
+      try {
+        const r = await api(endpoint, { method: "POST", body: JSON.stringify({ device_id: id, izinli_saglayici: yeniPaket }) });
+        const etkin = (r && r.izinli_saglayici) || yeniPaket;
+        durumYaz(dr, `Kaydedildi (${paketEtiketUI(etkin)}). Gönderici bir sonraki döngüde ikilisini otomatik değiştirecek (→ ${etkin}).`);
+        const rozet = $(`[data-ikili-rozet="${id}"]`);
+        if (rozet) {
+          rozet.className = "pill";
+          rozet.innerHTML = `<span>İzin: ${esc(paketEtiketUI(etkin))} · Güncelleniyor → ${esc(etkin)}</span>`;
+        }
+        if (typeof sonrasi === "function") sonrasi(etkin);
+      } catch (er) {
+        durumYaz(dr, er.message, true);
+      }
+      if (btn) btn.disabled = false;
+    };
+  });
 }
 
 const sistemTemaMedya = matchMedia("(prefers-color-scheme: dark)");
@@ -2752,6 +2947,13 @@ async function pageHesabim() {
     return `<span class="pill ${k.rol === "super" || o ? "pill-accent" : ""}">${ICON[p.id]}<span>${esc(p.ad)}: ${rol}</span></span>`;
   }).join(" ");
   const os0 = guessOS();
+  const varsayilanHesapPaketi = (() => {
+    const birlesim = paketNormalizeUI((h.cihazlar || []).map((c) => c.izinli_saglayici).filter(Boolean));
+    if (birlesim) return birlesim;
+    if (k.rol === "super") return "cgm";
+    const ofisPak = paketNormalizeUI((h.ofisler || []).map((o) => o.saglayici));
+    return ofisPak || "cm";
+  })();
   shell("hesabim", `
     <h1>Hesabım</h1>
     <p class="lead">@${esc(k.kullanici_adi)} · ${k.rol === "super" ? "Süper yönetici" : "Üye"}${k.son_giris ? ` · son giriş ${dTime(k.son_giris)}` : ""}</p>
@@ -2780,17 +2982,22 @@ async function pageHesabim() {
             <label class="visually-hidden" for="ca-${esc(c.id)}">Bilgisayar adı</label>
             <input id="ca-${esc(c.id)}" name="label" type="text" maxlength="40" required value="${esc(c.label)}">
             <button type="submit" class="btn btn-plain btn-sm">Adı kaydet</button></form>
-            <small class="muted">${[c.os, c.client_ver ? `v${c.client_ver}` : "", c.id.slice(0, 8)].filter(Boolean).map(esc).join(" · ")}</small></th>
+            <small class="muted">${[c.os, c.client_ver ? `v${c.client_ver}` : "", c.id.slice(0, 8)].filter(Boolean).map(esc).join(" · ")}${OTURUM.gor.size || OTURUM.admin ? ` · <a href="${urlKur(`/pano/bilgisayar/${c.id}`)}" data-link>Ayrıntı →</a>` : ""}</small>
+            <div style="margin-top:6px">${cihazIkiliRozetHTML(c)}</div>
+            ${cihazIzinDuzenleyiciHTML(c)}</th>
           <td class="muted">${esc(ago(c.last_seen, h.now).t)}${ozel ? `<br><span class="warn">Özel betik — Terminal'de onarın</span>` : guncelDegil ? `<br><span class="warn">Güncel değil (v${c.client_ver} → v${h.latest})</span>` : ""}</td>
           <td><div style="display:flex;gap:6px;flex-wrap:wrap">${(ozel || guncelDegil) ? `<button type="button" class="btn btn-plain btn-sm" data-onar-kopyala="${esc(onarKomut)}" title="Terminal/PowerShell onarım komutunu kopyala">Onar komutu</button>` : ""}<button type="button" class="btn btn-danger btn-sm" data-cihaz-sil="${esc(c.id)}" data-cihaz-etiket="${esc(c.label)}">Kaldır</button></div></td>
         </tr>`;
         }).join("")}</tbody></table></div>` : `<p class="muted">Henüz bağlı bilgisayarın yok.</p>`}
       <p class="kayit-durum" id="c-durum" role="status" aria-live="polite"></p>
       <h3 style="margin:18px 0 8px;font-size:15px">Bilgisayar ekle</h3>
-      <form id="f-kod" class="addrow" method="POST" action="/api/hesap/kod">
-        <div><label for="kd-ad">Ad</label><input id="kd-ad" name="label" type="text" maxlength="40" placeholder="Örn. İş dizüstü" required></div>
-        <div><label for="kd-os">Sistem</label><select id="kd-os" name="os">${Object.entries(OS).map(([kk, v]) => `<option value="${kk}"${kk === os0 ? " selected" : ""}>${v.ad}</option>`).join("")}</select></div>
-        <button class="btn btn-ink" type="submit">Kod üret</button>
+      <form id="f-kod" method="POST" action="/api/hesap/kod">
+        <div class="addrow">
+          <div><label for="kd-ad">Ad</label><input id="kd-ad" name="label" type="text" maxlength="40" placeholder="Örn. İş dizüstü" required></div>
+          <div><label for="kd-os">Sistem</label><select id="kd-os" name="os">${Object.entries(OS).map(([kk, v]) => `<option value="${kk}"${kk === os0 ? " selected" : ""}>${v.ad}</option>`).join("")}</select></div>
+          <button class="btn btn-ink" type="submit">Kod üret</button>
+        </div>
+        ${saglayiciSecimAlanHTML("kd-izin", varsayilanHesapPaketi)}
       </form>
       <p class="err" id="kd-e" role="alert"></p>
       <div id="kd-kutu" class="codebox" style="display:none"></div>
@@ -2815,6 +3022,7 @@ async function pageHesabim() {
     </section>`, { authed: true });
   sifreGosterBagla();
   onarKopyalaBagla();
+  cihazIzinBagla(document, "/api/hesap/cihaz-izin");
 
   $("#f-profil").onsubmit = async (e) => {
     e.preventDefault();
@@ -2874,15 +3082,18 @@ async function pageHesabim() {
     box.style.display = "";
     if (kalan <= 0) { box.innerHTML = `<p class="warn" style="margin:0">Kodun süresi doldu. Yeni kod üret.</p>`; bekleyenKod = null; return; }
     const o = OS[$("#kd-os").value];
-    box.innerHTML = `<p><b>${esc(bekleyenKod.label)}</b> için kod <span class="code">${bekleyenKod.code}</span> <span class="muted">(${Math.floor(kalan / 60)}:${String(kalan % 60).padStart(2, "0")} kaldı)</span></p><p class="muted">${esc(o.not)}</p>${cmdBlock(o.kur(bekleyenKod.code))}`;
+    const izinEtiket = paketEtiketUI(bekleyenKod.izinli_saglayici);
+    box.innerHTML = `<p><b>${esc(bekleyenKod.label)}</b> için kod <span class="code">${bekleyenKod.code}</span> <span class="muted">(${Math.floor(kalan / 60)}:${String(kalan % 60).padStart(2, "0")} kaldı · İkili: ${esc(izinEtiket)})</span></p><p class="muted">${esc(o.not)}</p>${cmdBlock(o.kur(bekleyenKod.code))}`;
   };
   $("#kd-os").onchange = kodCiz;
   $("#f-kod").onsubmit = async (e) => {
     e.preventDefault();
     $("#kd-e").textContent = "";
-    const b = e.submitter || $("#f-kod button"); b.disabled = true;
+    const izinPaket = izinKutusuDegeriOku($("#f-kod"));
+    if (!izinPaket) { $("#kd-e").textContent = "En az bir veri sağlayıcısı seçilmeli."; return; }
+    const b = e.submitter || $("#f-kod button[type=submit]"); b.disabled = true;
     try {
-      bekleyenKod = await api("/api/hesap/kod", { method: "POST", body: JSON.stringify({ label: $("#kd-ad").value.trim() }) });
+      bekleyenKod = await api("/api/hesap/kod", { method: "POST", body: JSON.stringify({ label: $("#kd-ad").value.trim(), izinli_saglayici: izinPaket }) });
       kodCiz(); clearInterval(kodZamanlayici); kodZamanlayici = setInterval(() => { if (location.pathname === "/pano/hesabim") kodCiz(); else clearInterval(kodZamanlayici); }, 1000);
     } catch (er) { $("#kd-e").textContent = er.message; }
     b.disabled = false;
@@ -5647,13 +5858,23 @@ function limitPanel(d, perDev, gun = null) {
   const tolerans = ayar && ayar.ofis && Number.isFinite(ayar.ofis.asimEsik) ? ayar.ofis.asimEsik : 0;
   const guncelPct = L && L.pct !== null && L.pct !== undefined ? L.pct : null;
   const pct = canli ? guncelPct : seriAt(L && L.seri, kesit);
-  // Üye başına Fable maliyeti (Fable çubukları için; haftalık çubuklarda Fable dahil tüm modeller sayılır)
+  // Üye başına Fable ve Antigravity (Gemini vs Claude/3P) havuz maliyetleri
   const devGroup = new Map();
   for (const g of groups) for (const x of g.devs) devGroup.set(x.id, g);
-  for (const g of groups) g.fusd = 0;
-  for (const r of usage) if (claudeMu && FABLE_RE.test(r.model) && devGroup.has(r.device_id)) devGroup.get(r.device_id).fusd += r.usd;
+  for (const g of groups) { g.fusd = 0; g.agyClaudeUsd = 0; g.agyGeminiUsd = 0; }
+  for (const r of usage) {
+    if (!devGroup.has(r.device_id)) continue;
+    const grp = devGroup.get(r.device_id);
+    if (claudeMu && FABLE_RE.test(r.model)) grp.fusd += r.usd;
+    if (sgl === "gemini") {
+      if (agyClaudeHavuzuMu(r.model)) grp.agyClaudeUsd += r.usd;
+      else grp.agyGeminiUsd += r.usd;
+    }
+  }
   const total = groups.reduce((a, g) => a + g.usd, 0);
   const totalF = groups.reduce((a, g) => a + g.fusd, 0);
+  const totalAgyClaude = groups.reduce((a, g) => a + g.agyClaudeUsd, 0);
+  const totalAgyGemini = groups.reduce((a, g) => a + g.agyGeminiUsd, 0);
   const equal = n ? 100 / n : 0;
   // Fable: yalnızca Anthropic'in bildirdiği gerçek yüzde kullanılır (tahmin yok). Pay = gerçek yüzde x üyenin Fable $ payı.
   const ham = L && L.ham ? L.ham : null;
@@ -5686,45 +5907,79 @@ function limitPanel(d, perDev, gun = null) {
   const agyGeminiReset = agyGeminiPct !== null && Number.isFinite(ham["agy_gemini.resets_at"]) && ham["agy_gemini.resets_at"] > d.now ? `${gunAd(ham["agy_gemini.resets_at"])} ${hm(ham["agy_gemini.resets_at"])}` : "";
   const agyClaude5Reset = agyClaude5Pct !== null && Number.isFinite(ham["agy_claude_5h.resets_at"]) && ham["agy_claude_5h.resets_at"] > d.now ? hm(ham["agy_claude_5h.resets_at"]) : "";
   const agyGemini5Reset = agyGemini5Pct !== null && Number.isFinite(ham["agy_gemini_5h.resets_at"]) && ham["agy_gemini_5h.resets_at"] > d.now ? hm(ham["agy_gemini_5h.resets_at"]) : "";
+  const agyGeminiUyeSatirlari = agyGeminiPct !== null && totalAgyGemini > 0
+    ? `<ul class="agy-havuz-uyeler" aria-label="Antigravity Gemini havuzu kişi başı dağılım">${[...groups]
+        .filter((g) => g.agyGeminiUsd > 0)
+        .sort((a, b) => b.agyGeminiUsd - a.agyGeminiUsd)
+        .map((g) => {
+          const pay = agyGeminiPct * (g.agyGeminiUsd / totalAgyGemini);
+          return `<li><span>${esc(g.ad)}</span><b>%${pctFmt(pay)} · ${money(g.agyGeminiUsd)}</b></li>`;
+        }).join("")}</ul>`
+    : "";
+  const agyClaudeUyeSatirlari = agyClaudePct !== null && totalAgyClaude > 0
+    ? `<ul class="agy-havuz-uyeler" aria-label="Antigravity Claude ve GPT havuzu kişi başı dağılım">${[...groups]
+        .filter((g) => g.agyClaudeUsd > 0)
+        .sort((a, b) => b.agyClaudeUsd - a.agyClaudeUsd)
+        .map((g) => {
+          const pay = agyClaudePct * (g.agyClaudeUsd / totalAgyClaude);
+          return `<li><span>${esc(g.ad)}</span><b>%${pctFmt(pay)} · ${money(g.agyClaudeUsd)}</b></li>`;
+        }).join("")}</ul>`
+    : "";
   const agyHavuzHtml = (agyGeminiPct !== null || agyClaudePct !== null)
     ? `<div class="agy-havuzlar" aria-label="Antigravity model havuzları">
         ${agyGeminiPct !== null ? `<div class="agy-havuz">
-          <div class="agy-havuz-ust"><span>Antigravity · Gemini Havuzu</span><b>%${pctFmt(agyGeminiPct)}</b></div>
+          <div class="agy-havuz-ust"><span>Antigravity · Gemini Havuzu</span><b>%${pctFmt(agyGeminiPct)}${totalAgyGemini > 0 ? ` · ${money(totalAgyGemini)}` : ""}</b></div>
           <span class="lbar" role="img" aria-label="Antigravity Gemini havuzu %${pctFmt(agyGeminiPct)}"><i style="width:${Math.min(100, agyGeminiPct).toFixed(1)}%;background:#3b82f6"></i></span>
-          <div class="agy-havuz-alt">Gemini 4 · 3.8 Flash${agyGemini5Pct !== null ? ` · 5s: %${pctFmt(agyGemini5Pct)}${agyGemini5Reset ? ` (${esc(agyGemini5Reset)})` : ""}` : ""}${agyGeminiReset ? ` · Haftalık sıfırlama: ${esc(agyGeminiReset)}` : ""}</div>
+          <div class="agy-havuz-alt">Gemini 4 Carbon/Argon · 3.8/3.5 Flash${agyGemini5Pct !== null ? ` · 5s: %${pctFmt(agyGemini5Pct)}${agyGemini5Reset ? ` (${esc(agyGemini5Reset)})` : ""}` : ""}${agyGeminiReset ? ` · Haftalık sıfırlama: ${esc(agyGeminiReset)}` : ""}</div>
+          ${agyGeminiUyeSatirlari}
         </div>` : ""}
         ${agyClaudePct !== null ? `<div class="agy-havuz">
-          <div class="agy-havuz-ust"><span>Antigravity · Claude &amp; 3P Havuzu</span><b>%${pctFmt(agyClaudePct)}</b></div>
-          <span class="lbar" role="img" aria-label="Antigravity Claude ve 3P havuzu %${pctFmt(agyClaudePct)}"><i style="width:${Math.min(100, agyClaudePct).toFixed(1)}%;background:#8b5cf6"></i></span>
-          <div class="agy-havuz-alt">Claude Opus/Sonnet 5.5 · GPT-OSS${agyClaude5Pct !== null ? ` · 5s: %${pctFmt(agyClaude5Pct)}${agyClaude5Reset ? ` (${esc(agyClaude5Reset)})` : ""}` : ""}${agyClaudeReset ? ` · Haftalık sıfırlama: ${esc(agyClaudeReset)}` : ""}</div>
+          <div class="agy-havuz-ust"><span>Antigravity · Claude / GPT Havuzu</span><b>%${pctFmt(agyClaudePct)}${totalAgyClaude > 0 ? ` · ${money(totalAgyClaude)}` : ""}</b></div>
+          <span class="lbar" role="img" aria-label="Antigravity Claude ve GPT havuzu %${pctFmt(agyClaudePct)}"><i style="width:${Math.min(100, agyClaudePct).toFixed(1)}%;background:#8b5cf6"></i></span>
+          <div class="agy-havuz-alt">Claude Opus/Sonnet 5.5 &amp; 4.6 · GPT${agyClaude5Pct !== null ? ` · 5s: %${pctFmt(agyClaude5Pct)}${agyClaude5Reset ? ` (${esc(agyClaude5Reset)})` : ""}` : ""}${agyClaudeReset ? ` · Haftalık sıfırlama: ${esc(agyClaudeReset)}` : ""}</div>
+          ${agyClaudeUyeSatirlari}
         </div>` : ""}
       </div>`
     : "";
+  const agyAyrikMod = sgl === "gemini" && !(L && L.elle) && agyGeminiPct !== null && pct !== null && Math.abs(pct - agyGeminiPct) < 0.05;
   const rows = n ? [...groups].sort((a, b) => b.usd - a.usd).map((g) => {
     const hak = payMap.has(g.id) ? payMap.get(g.id) : equal;
     const alt = g.devs.length > 1 ? `<small class="ldv">${g.devs.map((x) => esc(x.label)).join(", ")}</small>` : g.devs.length ? "" : `<small class="ldv">bilgisayar yok</small>`;
     if (pct === null) {
       const payYuzde = total > 0 ? Math.min(100, (g.usd / total) * 100) : 0;
       const aria = `${g.ad}: haftalık harcama ${money(g.usd)}${total > 0 ? ` (%${pctFmt(payYuzde)} pay)` : ""}, kota hakkı %${pctFmt(hak)}`;
+      const havuzAlt = sgl === "gemini" && (g.agyGeminiUsd > 0 || g.agyClaudeUsd > 0)
+        ? ` · Gemini ${money(g.agyGeminiUsd)}${g.agyClaudeUsd > 0 ? ` · Claude/GPT ${money(g.agyClaudeUsd)}` : ""}`
+        : "";
       return `<li class="lrow"><span class="ln">${esc(g.ad)}${alt}</span>
         <span class="lmid"><span class="lbar" role="img" aria-label="${esc(aria)}"><i style="width:${payYuzde.toFixed(2)}%"></i></span></span>
-        <span class="lv"><b>${money(g.usd)}</b><small>${total > 0 ? `%${pctFmt(payYuzde)} pay · ` : ""}hakkı %${pctFmt(hak)}</small></span></li>`;
+        <span class="lv"><b>${money(g.usd)}</b><small>${total > 0 ? `%${pctFmt(payYuzde)} pay · ` : ""}hakkı %${pctFmt(hak)}${havuzAlt}</small></span></li>`;
     }
-    const used = total ? pct * (g.usd / total) : 0;
+    const used = agyAyrikMod
+      ? (totalAgyGemini > 0 ? pct * (g.agyGeminiUsd / totalAgyGemini) : 0)
+      : (total ? pct * (g.usd / total) : 0);
     const bar = hak > 0 ? Math.min(100, (used / hak) * 100) : (used > 0 ? 100 : 0);
     const over = hak <= 0 ? used > 0.005 : used >= hak + tolerans - 0.005;
-    let fable = "";
+    let ikincilCubuk = "";
     if (showF) {
       const fAllow = hak;
       const fUsed = totalF ? official * (g.fusd / totalF) : 0;
       const fBar = fAllow > 0 ? Math.min(100, (fUsed / fAllow) * 100) : (fUsed > 0 ? 100 : 0);
       const fOver = fAllow <= 0 ? fUsed > 0.005 : fUsed >= fAllow + tolerans - 0.005;
       const tip = `Fable: hakkı olan %${pctFmt(fAllow)} içinden %${pctFmt(fUsed)}`;
-      fable = `<span class="fbar" role="img" aria-label="${esc(g.ad)}, ${esc(tip)}" title="${esc(tip)}"><i style="width:${fBar.toFixed(2)}%" class="${fOver ? "over" : ""}"></i></span>
+      ikincilCubuk = `<span class="fbar" role="img" aria-label="${esc(g.ad)}, ${esc(tip)}" title="${esc(tip)}"><i style="width:${fBar.toFixed(2)}%" class="${fOver ? "over" : ""}"></i></span>
         <span class="flab" aria-hidden="true">Fable %${pctFmt(fUsed)} / %${pctFmt(fAllow)}</span>`;
+    } else if (sgl === "gemini" && agyClaudePct !== null && (totalAgyClaude > 0 || agyClaudePct > 0)) {
+      const cAllow = hak;
+      const cUsed = totalAgyClaude > 0 ? agyClaudePct * (g.agyClaudeUsd / totalAgyClaude) : 0;
+      const cBar = cAllow > 0 ? Math.min(100, (cUsed / cAllow) * 100) : (cUsed > 0 ? 100 : 0);
+      const cOver = cAllow <= 0 ? cUsed > 0.005 : cUsed >= cAllow + tolerans - 0.005;
+      const tip = `Antigravity Claude / GPT: hakkı olan %${pctFmt(cAllow)} içinden %${pctFmt(cUsed)} (${money(g.agyClaudeUsd)})`;
+      ikincilCubuk = `<span class="fbar" role="img" aria-label="${esc(g.ad)}, ${esc(tip)}" title="${esc(tip)}"><i style="width:${cBar.toFixed(2)}%" class="${cOver ? "over" : ""}"></i></span>
+        <span class="flab" aria-hidden="true">Claude/GPT %${pctFmt(cUsed)} / %${pctFmt(cAllow)}</span>`;
     }
     return `<li class="lrow"><span class="ln">${esc(g.ad)}${alt}</span>
-      <span class="lmid"><span class="lbar" role="img" aria-label="${esc(g.ad)}: hakkı olan %${pctFmt(hak)} içinden %${pctFmt(used)} kullandı"><i style="width:${bar.toFixed(2)}%" class="${over ? "over" : ""}"></i></span>${fable}</span>
+      <span class="lmid"><span class="lbar" role="img" aria-label="${esc(g.ad)}: hakkı olan %${pctFmt(hak)} içinden %${pctFmt(used)} kullandı"><i style="width:${bar.toFixed(2)}%" class="${over ? "over" : ""}"></i></span>${ikincilCubuk}</span>
       <span class="lv"><b class="${over ? "bad" : ""}">%${pctFmt(used)}</b><small>hakkı %${pctFmt(hak)}</small></span></li>`;
   }).join("") : "";
   const bosNot = claudeMu
@@ -6572,8 +6827,10 @@ async function pageDevice(id) {
   try { d = await loadWeek(); } catch (e) { if (e.message !== "giriş") showError("bilgisayarlar", offlineMsg(e), () => pageDevice(id)); return; }
   const dev = d.devices.find((x) => x.id === id);
   if (!dev) { shell("bilgisayarlar", `<a class="back" href="${urlKur("/pano")}" data-link>${ICON.left}Haftaya dön</a><div class="card"><p class="empty">Bu bilgisayar bulunamadı.</p></div>`, { authed: true }); return; }
+  const sahipMi = !!(OTURUM.kullanici && OTURUM.kullanici.uye_id && dev.uye_id && dev.uye_id === OTURUM.kullanici.uye_id);
+  if (!OTURUM.admin && !sahipMi) return pageYoneticiGerekli("bilgisayarlar");
   const sb = saglayiciBilgi(d.saglayici || "claude");
-  const hariç = await api(`/api/yonetim/haric?id=${id}`).catch(() => []);
+  const hariç = OTURUM.admin ? await api(`/api/yonetim/haric?id=${id}`).catch(() => []) : [];
   const rows = d.usage.filter((r) => r.device_id === id);
   const s = sumZero(); const byModel = new Map();
   for (const r of rows) { add(s, r); if (!byModel.has(r.model)) byModel.set(r.model, sumZero()); add(byModel.get(r.model), r); }
@@ -6584,7 +6841,7 @@ async function pageDevice(id) {
   const devWeeks = { ...d, weeks: d.weeks.map((w) => ({ start: w.start, usd: w.byDevice?.[id] || 0 })) };
   const models = [...byModel.entries()].sort((x, y) => y[1].usd - x[1].usd);
   const maxModUsd = models.length ? models[0][1].usd : 0;
-  const rozetler = cihazHesapRozetleri(dev, d.hesapKilit);
+  const rozetler = [cihazIkiliRozetHTML(dev), cihazHesapRozetleri(dev, d.hesapKilit)].filter(Boolean).join(" ");
 
   shell("bilgisayarlar", `
     <a class="back" href="/pano${location.search}" data-link>${ICON.left}Haftaya dön</a>
@@ -6608,17 +6865,24 @@ async function pageDevice(id) {
     </section>
     <section class="card" aria-labelledby="h-ad"><h2 id="h-ad">Bilgisayar ayarları ve kontroller</h2>
       <form class="rename" id="rn"><label class="visually-hidden" for="ad">Bilgisayar adı</label><input id="ad" type="text" maxlength="40" value="${esc(dev.label)}"><button class="btn btn-plain" type="submit">Kaydet</button></form><p class="err" id="rne" role="alert"></p>
+      <div class="izin-alan" style="margin-bottom:12px">
+        <span class="izin-alan-baslik">İzin verilen veri sağlayıcıları ve izole ikili paket</span>
+        <div style="margin-bottom:6px">${cihazIkiliRozetHTML(dev)}</div>
+        ${cihazIzinDuzenleyiciHTML(dev)}
+        <p class="izin-not">Gönderici ikilisi yalnızca seçtiğiniz sağlayıcıların kodunu içerir; diğer sağlayıcıların okuma kodu bile indirilmez.</p>
+      </div>
       ${kontrolBolumu(dev, d)}${onarKutuHTML(dev, d)}<p class="muted" style="margin-top:12px;margin-bottom:0">Eklendi: ${dLong(dev.created_at)}. ${osEtiket(dev) ? `İşletim sistemi: ${osEtiket(dev)}. ` : ""}Kimlik: ${dev.id.slice(0, 8)}. ${(dev.client_ver || 0) ? (dev.client_ver >= d.latest ? `Uygulama sürümü v${dev.client_ver}, güncel.` : `Gönderici sürümü v${dev.client_ver}; güncel sürüm v${d.latest}.`) : "Gönderici sürümü henüz bildirilmedi."}</p></section>
-    <section class="card" aria-labelledby="h-har"><h2 id="h-har">Hariç tutulan oturumlar</h2>
+    ${OTURUM.admin ? `<section class="card" aria-labelledby="h-har"><h2 id="h-har">Hariç tutulan oturumlar</h2>
       <p class="muted">Bu oturumun kullanımı bu bilgisayarın toplamlarına ve grafiklerine sayılmaz. Kayıt sunucuda durur, geri alabilirsin.</p>
       <form id="hf" class="addrow" style="margin-top:12px"><div><label for="ho">Oturum kimliği</label><input id="ho" type="text" placeholder="Örn. 0f1e2d3c-…" maxlength="36" required></div><div><label for="hn">Not</label><input id="hn" type="text" maxlength="140" placeholder="İsteğe bağlı"></div><button class="btn btn-plain" type="submit">Hariç tut</button></form>
       <p class="err" id="hfe" role="alert"></p>
       ${hariç.length ? `<ul class="hlist" role="list">${hariç.map((x) => `<li><span><b>${esc(x.sid.slice(0, 8))}</b>${x.note ? ` · ${esc(x.note)}` : ""}<small class="muted">${dLong(x.added_at)}</small></span><button class="btn btn-plain" type="button" data-geri="${esc(x.sid)}">Geri al</button></li>`).join("")}</ul>` : `<p class="muted" style="margin-bottom:0">Hariç tutulan oturum yok.</p>`}
-    </section>
+    </section>` : ""}
     <div class="danger-zone"><h2>Bilgisayarı kaldır</h2><p>Bu bilgisayarın tüm geçmiş verisi silinir ve gönderimleri artık kabul edilmez. Geri alınamaz.</p>
       <button class="btn btn-danger" type="button" id="del">Bilgisayarı kaldır</button></div>`, { authed: true });
   wireChart(d, id);
   onarKopyalaBagla();
+  cihazIzinBagla(document, OTURUM.admin ? "/api/yonetim/cihaz-izin" : "/api/hesap/cihaz-izin", (etkin) => { dev.izinli_saglayici = etkin; });
   const hf = $("#hf");
   if (hf) hf.onsubmit = async (e) => {
     e.preventDefault(); $("#hfe").textContent = "";
@@ -6632,7 +6896,7 @@ async function pageDevice(id) {
   }));
   $("#rn").onsubmit = async (e) => {
     e.preventDefault(); $("#rne").textContent = "";
-    try { await api("/api/yonetim/cihaz-adlandir", { method: "POST", body: JSON.stringify({ id, label: $("#ad").value }) }); route(); }
+    try { await api(OTURUM.admin ? "/api/yonetim/cihaz-adlandir" : "/api/hesap/cihaz-adlandir", { method: "POST", body: JSON.stringify({ id, label: $("#ad").value }) }); route(); }
     catch (er) { $("#rne").textContent = er.message; }
   };
   $("#del").onclick = () => {
@@ -6647,7 +6911,7 @@ async function pageDevice(id) {
     $("#vz", dlg).onclick = () => dlg.close();
     $("#ok", dlg).onclick = async (ev) => {
       ev.target.disabled = true;
-      try { await api("/api/yonetim/cihaz-sil", { method: "POST", body: JSON.stringify({ id }) }); dlg.close(); go(urlKur("/pano/bilgisayarlar")); }
+      try { await api(OTURUM.admin ? "/api/yonetim/cihaz-sil" : "/api/hesap/cihaz-sil", { method: "POST", body: JSON.stringify({ id }) }); dlg.close(); go(OTURUM.admin ? urlKur("/pano/bilgisayarlar") : "/pano/hesabim"); }
       catch (er) { $("#de", dlg).textContent = er.message; ev.target.disabled = false; }
     };
     dlg.showModal();
@@ -6741,9 +7005,9 @@ async function pageDevices() {
       <div class="table-wrap" tabindex="0" role="region" aria-labelledby="h-cihaz-tablo"><table class="devlist"><thead><tr><th scope="col">Bilgisayar</th><th scope="col">Bu hafta (${esc(sb.ad)})</th><th scope="col">Durum</th><th scope="col" class="hide-sm">Eklendi</th></tr></thead>
       <tbody>${d.devices.map((x) => {
         const a = ago(x.last_seen, d.now);
-        const rozetler = cihazHesapRozetleri(x, d.hesapKilit);
+        const rozetler = [cihazIkiliRozetHTML(x), cihazHesapRozetleri(x, d.hesapKilit)].filter(Boolean).join(" ");
         return `<tr>
-          <td><a href="${urlKur(`/pano/bilgisayar/${x.id}`)}" data-link>${esc(x.label)}</a><small>${[osEtiket(x), x.client_ver ? `v${x.client_ver}` : "", x.id.slice(0, 8)].filter(Boolean).join(" · ")}</small>${rozetler ? `<div class="hesap-rozetler">${rozetler}</div>` : ""}</td>
+          <td><a href="${urlKur(`/pano/bilgisayar/${x.id}`)}" data-link>${esc(x.label)}</a><small>${[osEtiket(x), x.client_ver ? `v${x.client_ver}` : "", x.id.slice(0, 8)].filter(Boolean).join(" · ")}</small>${rozetler ? `<div class="hesap-rozetler">${rozetler}</div>` : ""}${cihazIzinDuzenleyiciHTML(x)}</td>
           <td class="usd">${money(per.get(x.id) || 0)}</td>
           <td class="${live.has(x.id) ? "" : a.stale ? "warn" : "muted"}">${live.has(x.id) ? `<span class="pill pill-ok">şu an çalışıyor</span>` : esc(a.t)}${ozelIstemciMi(x) ? `<br><span class="warn">Özel betik · Elle onarım gerekli</span>` : isOld(x, d) ? `<br><span class="warn">Gönderici güncel değil</span>` : ""}${isSus(x) ? `<br><span class="bad">Şüpheli${supheliOfisEtiketi(x) ? ` (${esc(supheliOfisEtiketi(x))})` : ""}: ayrıntı için aç</span>` : isWarn(x) ? `<br><span class="warn">Dikkat edilecek ayar var</span>` : ""}</td>
           <td class="muted hide-sm">${dLong(x.created_at)}</td></tr>`;
@@ -6756,11 +7020,14 @@ async function pageDevices() {
       <p class="err" id="ke" role="alert"></p>
     </section>
     <section class="card addbox" aria-labelledby="h-ekle"><h2 id="h-ekle">Bilgisayar ekle</h2>
-      <form id="add" class="addrow">
-        <div><label for="lb">Ad</label><input id="lb" type="text" maxlength="40" placeholder="Örn. Ofis iMac" required></div>
-        ${(d.uyeler || []).length ? `<div><label for="uy">Üye</label><select id="uy">${d.uyeler.map((u) => `<option value="${esc(u.id)}">${esc(u.ad)}</option>`).join("")}</select></div>` : ""}
-        <div><label for="os">Sistem</label><select id="os">${Object.entries(OS).map(([k, v]) => `<option value="${k}" ${k === os0 ? "selected" : ""}>${v.ad}</option>`).join("")}</select></div>
-        <button class="btn btn-ink" type="submit">Kod üret</button>
+      <form id="add">
+        <div class="addrow">
+          <div><label for="lb">Ad</label><input id="lb" type="text" maxlength="40" placeholder="Örn. Ofis iMac" required></div>
+          ${(d.uyeler || []).length ? `<div><label for="uy">Üye</label><select id="uy">${d.uyeler.map((u) => `<option value="${esc(u.id)}">${esc(u.ad)}</option>`).join("")}</select></div>` : ""}
+          <div><label for="os">Sistem</label><select id="os">${Object.entries(OS).map(([k, v]) => `<option value="${k}" ${k === os0 ? "selected" : ""}>${v.ad}</option>`).join("")}</select></div>
+          <button class="btn btn-ink" type="submit">Kod üret</button>
+        </div>
+        ${saglayiciSecimAlanHTML("adm-izin", pending?.izinli_saglayici || "cgm")}
       </form><p class="err" id="ae" role="alert"></p>
       <div id="cb" class="codebox" style="display:none"></div></section>
     <section class="card bildirim" aria-labelledby="h-bildirim"><h2 id="h-bildirim">Bildirim gönder</h2>
@@ -6828,16 +7095,20 @@ async function pageDevices() {
     const left = pending.expires_at - Math.floor(Date.now() / 1000);
     if (left <= 0) { box.innerHTML = `<p class="warn" style="margin:0">"${esc(pending.label)}" için kodun süresi doldu. Yeni kod üret.</p>`; pending = null; return; }
     const o = OS[pending.os];
-    box.innerHTML = `<p><b>${esc(pending.label)}</b> için kod <span class="code">${pending.code}</span> <span class="muted">(${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")} kaldı)</span></p>
+    const izinEtiket = paketEtiketUI(pending.izinli_saglayici);
+    box.innerHTML = `<p><b>${esc(pending.label)}</b> için kod <span class="code">${pending.code}</span> <span class="muted">(${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")} kaldı · İkili: ${esc(izinEtiket)})</span></p>
       <p class="muted">${esc(o.not)}</p>${cmdBlock(o.kur(pending.code))}`;
   };
+  cihazIzinBagla(document, "/api/yonetim/cihaz-izin");
   drawCode();
   clearInterval(timer); timer = setInterval(() => { if (location.pathname === "/pano/bilgisayarlar") drawCode(); else clearInterval(timer); }, 1000);
   $("#os").onchange = () => { if (pending) { pending.os = $("#os").value; drawCode(); } };
   $("#add").onsubmit = async (e) => {
     e.preventDefault(); $("#ae").textContent = "";
+    const izinPaket = izinKutusuDegeriOku($("#add"));
+    if (!izinPaket) { $("#ae").textContent = "En az bir veri sağlayıcısı seçilmeli."; return; }
     try {
-      const r = await api("/api/yonetim/kod", { method: "POST", body: JSON.stringify({ label: $("#lb").value, uye_id: $("#uy")?.value || "" }) });
+      const r = await api("/api/yonetim/kod", { method: "POST", body: JSON.stringify({ label: $("#lb").value, uye_id: $("#uy")?.value || "", izinli_saglayici: izinPaket }) });
       pending = { ...r, os: $("#os").value }; $("#lb").value = ""; drawCode();
     } catch (er) { $("#ae").textContent = er.message; }
   };
@@ -7317,6 +7588,17 @@ async function pageSettings(bolum = "genel") {
           </div>
         </form>
       </section>
+      <section class="card" id="sistem-guncelleme-kutu" aria-labelledby="h-sis-guncelle">
+        <div class="card-head">
+          <h2 id="h-sis-guncelle">Açık Kaynak Sürüm ve Güncelleme</h2>
+          <span class="pill" id="sis-surum-rozet">Kontrol ediliyor…</span>
+        </div>
+        <p class="card-sub" id="sis-surum-detay" style="margin-bottom:10px">GitHub üzerindeki son yayınlanan sürüm kontrol ediliyor…</p>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+          <button type="button" class="btn btn-plain btn-sm" id="btn-sis-guncelle">Şimdi kontrol et</button>
+          <a class="btn btn-ink btn-sm" id="sis-indir-link" href="${GITHUB_URL}/releases" target="_blank" rel="noopener noreferrer" hidden>GitHub sürümünü görüntüle →</a>
+        </div>
+      </section>
       <section class="card" aria-labelledby="h-erisim-bilgi">
         <h2 id="h-erisim-bilgi">Erişim ve hesaplar</h2>
         <p class="card-sub" style="margin-bottom:12px">Girişler kullanıcı adı ve şifreyle yapılıyor. Yeni üye eklediğinde tek kullanımlık şifre oluşturma bağlantısı üretilir; kimin hangi ofisi görüp yönetebileceğini Kullanıcılar sayfasından ayarlayabilirsin.</p>
@@ -7328,6 +7610,38 @@ async function pageSettings(bolum = "genel") {
         <button type="button" class="btn btn-danger" id="btn-varsayilan">Varsayılan ayarlara dön</button>
       </div>`, { authed: true });
     odaklaSekme();
+    const sistemSurumKontrolEt = async (zorla = false) => {
+      const rz = $("#sis-surum-rozet"), dt = $("#sis-surum-detay"), lnk = $("#sis-indir-link"), btn = $("#btn-sis-guncelle");
+      if (!rz || !dt) return;
+      if (btn) btn.disabled = true;
+      try {
+        const r = await api(zorla ? "/api/sistem-guncelleme?zorla=1" : "/api/sistem-guncelleme");
+        if (!$("#sis-surum-rozet")) return;
+        const mSurum = Number(r && r.mevcut_surum) || 40;
+        const sSurum = Number(r && r.son_surum) || mSurum;
+        const guvenliUrl = r && typeof r.indir_url === "string" && r.indir_url.startsWith("https://") ? r.indir_url : `${GITHUB_URL}/releases`;
+        if (r && r.guncel === false && sSurum > mSurum) {
+          rz.className = "pill pill-accent";
+          rz.textContent = `Yeni sürüm: v${sSurum}`;
+          dt.textContent = `Çalışan sunucu sürümü v${mSurum}; GitHub üzerinde v${sSurum} yayınlandı.`;
+          if (lnk) { lnk.href = guvenliUrl; lnk.hidden = false; }
+        } else {
+          rz.className = "pill pill-ok";
+          rz.textContent = `v${mSurum} · Güncel`;
+          dt.textContent = `Çalışan sunucu ve istemci altyapısı güncel (v${mSurum}).`;
+          if (lnk) { lnk.href = guvenliUrl; lnk.hidden = true; }
+        }
+      } catch {
+        if ($("#sis-surum-rozet")) {
+          rz.className = "pill";
+          rz.textContent = "v40";
+          dt.textContent = "GitHub sürüm bilgisi şu an sorgulanamadı.";
+        }
+      }
+      if (btn) btn.disabled = false;
+    };
+    if ($("#btn-sis-guncelle")) $("#btn-sis-guncelle").onclick = () => sistemSurumKontrolEt(true);
+    sistemSurumKontrolEt(false);
     $("#btn-yerel-tz").onclick = () => {
       try {
         const z = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -8541,7 +8855,7 @@ async function route() {
   const aktifSayfa = p === "/pano" ? "hafta" : p.startsWith("/pano/ayarlar") ? "ayarlar" : p === "/pano/limit" ? "limit" : "hafta";
   if (!OTURUM.admin && !OTURUM.gor.size && !p.startsWith("/pano/ayarlar")) return go("/pano/hesabim");
   if (!ofisIzinli(sgl) && !p.startsWith("/pano/ayarlar")) return pageOfisKapisi(sgl, aktifSayfa);
-  if (!OTURUM.admin && (p === "/pano/bilgisayarlar" || p.startsWith("/pano/bilgisayar/"))) return pageYoneticiGerekli("bilgisayarlar");
+  if (!OTURUM.admin && p === "/pano/bilgisayarlar") return pageYoneticiGerekli("bilgisayarlar");
   if (p === "/pano") { await pageWeek(); refresh = setInterval(() => { if (!document.hidden && location.pathname === "/pano" && !document.activeElement?.matches("input, a, button")) pageWeek(true); }, 60000); return; }
   if (p === "/pano/bilgisayarlar") return pageDevices();
   if (p === "/pano/limit") return pageLimit();

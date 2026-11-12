@@ -108,28 +108,33 @@ func imzaDogru(yuk []byte, imzaHex string) bool {
 	return rsa.VerifyPKCS1v15(&rsa.PublicKey{N: n, E: 65537}, crypto.SHA256, oz[:], imza) == nil
 }
 
-func hedefAdi() string { return runtime.GOOS + "-" + runtime.GOARCH }
+func hedefAdi() string { return hedefAdiPaket(paketKodu()) }
 
 func indirmeAdi(hedef string) string {
-	ad := "token-panosu-" + hedef
 	if strings.HasPrefix(hedef, "windows-") {
-		ad += ".exe"
+		// token-panosu-windows-amd64-cm.exe biçimi için uzantı en sona eklenir
+		return "token-panosu-" + hedef + ".exe"
 	}
-	return ad
+	return "token-panosu-" + hedef
+}
+
+type manifestGirdi struct {
+	Dosya  string `json:"dosya"`
+	Sha256 string `json:"sha256"`
+	Imza   string `json:"imza"`
 }
 
 type manifest struct {
 	Ikili *struct {
-		Surum    int `json:"surum"`
-		Dosyalar map[string]struct {
-			Sha256 string `json:"sha256"`
-			Imza   string `json:"imza"`
-		} `json:"dosyalar"`
+		Surum    int                      `json:"surum"`
+		Dosyalar map[string]manifestGirdi `json:"dosyalar"`
+		Hedefler map[string]manifestGirdi `json:"hedefler"`
 	} `json:"ikili"`
 }
 
-// Sunucudaki imzalı sürüm daha yeniyse indirir, doğrular ve programı değiştirir.
-// Eski ya da aynı sürüme asla geçmez; imzası, özeti ya da sürümü tutmayan dosyayı reddeder.
+// Sunucudaki imzalı sürüm daha yeniyse veya sunucunun bildirdiği sağlayıcı paketi mevcut
+// ikiliden farklıysa ilgili izole varyantı indirir, RSA-3072 + SHA-256 + "surum" denetiminden
+// geçirir, kaldırılan sağlayıcının kancalarını temizler ve programı atomik olarak değiştirir.
 func guncelle() (bool, error) {
 	if acikNHex == "" || acikNHex == "devre-disi" {
 		return false, nil
@@ -138,7 +143,7 @@ func guncelle() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	b, err := al(a.URL+"/guncelle/manifest.json", 64<<10)
+	b, err := al(a.URL+"/guncelle/manifest.json", 256<<10)
 	if err != nil {
 		return false, err
 	}
@@ -146,19 +151,59 @@ func guncelle() (bool, error) {
 	if err := json.Unmarshal(b, &m); err != nil {
 		return false, errors.New("manifest biçimi geçersiz")
 	}
-	if m.Ikili == nil || m.Ikili.Surum <= Surum {
+	if m.Ikili == nil {
 		return false, nil
 	}
-	hedef := hedefAdi()
-	g, ok := m.Ikili.Dosyalar[hedef]
-	if !ok {
-		return false, fmt.Errorf("%s için yeni sürüm yok", hedef)
+	mevcutHedef := hedefAdi()
+	istenenPaket := paketKodu()
+	if hp := paketTemizle(a.HedefPaket); hp != "" {
+		istenenPaket = hp
 	}
-	yuk := fmt.Sprintf("token-panosu-ikili-v1\n%d\n%s\n%s\n", m.Ikili.Surum, hedef, g.Sha256)
+	istenenHedef := hedefAdiPaket(istenenPaket)
+	ayniSurumPaketDegisimi := m.Ikili.Surum == Surum && istenenHedef != mevcutHedef
+	if m.Ikili.Surum < Surum || (m.Ikili.Surum == Surum && !ayniSurumPaketDegisimi) {
+		return false, nil
+	}
+
+	harita := make(map[string]manifestGirdi, len(m.Ikili.Dosyalar)+len(m.Ikili.Hedefler))
+	for k, v := range m.Ikili.Dosyalar {
+		harita[k] = v
+	}
+	for k, v := range m.Ikili.Hedefler {
+		harita[k] = v
+	}
+
+	taban := runtime.GOOS + "-" + runtime.GOARCH
+	secilenHedef := istenenHedef
+	g, ok := harita[secilenHedef]
+	if !ok && secilenHedef != taban {
+		// Yalnızca sunucu manifestinde hiçbir varyant derlemesi yoksa (eski OSS sunucusu) taban hedefe düş
+		cmGirdi, cmVar := harita[taban+"-cm"]
+		varyantYok := !cmVar || (cmGirdi.Dosya == "" && cmGirdi.Sha256 == "")
+		if varyantYok {
+			if ayniSurumPaketDegisimi && mevcutHedef == taban {
+				return false, nil
+			}
+			if tg, tok := harita[taban]; tok && !ayniSurumPaketDegisimi {
+				secilenHedef = taban
+				g = tg
+				ok = true
+				istenenPaket = "cgm"
+			}
+		}
+	}
+	if !ok || g.Sha256 == "" || g.Imza == "" {
+		return false, fmt.Errorf("%s için yeni sürüm yok", istenenHedef)
+	}
+	yuk := fmt.Sprintf("token-panosu-ikili-v1\n%d\n%s\n%s\n", m.Ikili.Surum, secilenHedef, g.Sha256)
 	if !imzaDogru([]byte(yuk), g.Imza) {
 		return false, errors.New("güncelleme imzası geçersiz, reddedildi")
 	}
-	ikili, err := al(a.URL+"/indir/"+indirmeAdi(hedef), 40<<20)
+	dosyaAdi := strings.TrimSpace(g.Dosya)
+	if dosyaAdi == "" || strings.ContainsAny(dosyaAdi, `/\`) || strings.Contains(dosyaAdi, "..") {
+		dosyaAdi = indirmeAdi(secilenHedef)
+	}
+	ikili, err := al(a.URL+"/indir/"+dosyaAdi, 40<<20)
 	if err != nil {
 		return false, err
 	}
@@ -179,11 +224,19 @@ func guncelle() (bool, error) {
 		os.Remove(gec)
 		return false, errors.New("yeni sürüm denetimden geçmedi, reddedildi")
 	}
+	// Bir sağlayıcı devre dışı bırakılıyorsa, yeni izole ikiliye geçmeden önce kancalarını temizle
+	if sagClaudeEtkin && !strings.Contains(istenenPaket, "c") {
+		durumSatiriKaldir()
+		uyariKaldir()
+	}
+	if sagGeminiEtkin && !strings.Contains(istenenPaket, "m") {
+		geminiKancaKaldir()
+	}
 	if err := yerineKoy(gec, hedefYol); err != nil {
 		os.Remove(gec)
 		return false, err
 	}
-	logYaz("güncellendi: sürüm %d -> %d", Surum, m.Ikili.Surum)
+	logYaz("güncellendi: sürüm %d (%s) -> %d (%s)", Surum, mevcutHedef, m.Ikili.Surum, secilenHedef)
 	return true, nil
 }
 

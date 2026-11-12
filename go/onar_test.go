@@ -7,10 +7,18 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
 func TestOnarKomutuOzelPythonBetiginiTasir(t *testing.T) {
+	sahteEv := t.TempDir()
+	t.Setenv("HOME", sahteEv)
+	t.Setenv("USERPROFILE", sahteEv)
+	t.Setenv("CLAUDE_CONFIG_DIR", "")
+	t.Setenv("CODEX_HOME", "")
+	t.Setenv("GEMINI_CLI_HOME", "")
+
 	gecDizin := t.TempDir()
 	laDizin := filepath.Join(t.TempDir(), "LaunchAgents")
 	betikDizin := filepath.Join(t.TempDir(), "ozel-betik")
@@ -103,5 +111,71 @@ URL = "https://ornek-eski.workers.dev/api/gonder"
 	}
 	if a.Cihaz != beklenenCihaz || a.URL != srv.URL {
 		t.Fatalf("ayar = %+v", a)
+	}
+}
+
+func TestTccGuvenliBetikYolu(t *testing.T) {
+	sahteEv := t.TempDir()
+	t.Setenv("HOME", sahteEv)
+	t.Setenv("USERPROFILE", sahteEv)
+
+	// TCC korumalı kullanıcı klasörleri her işletim sisteminde reddedilmeli
+	tccYasak := []string{
+		"~/Desktop/x.py",
+		"~/Documents/x.py",
+		"~/Downloads/x.py",
+		"~/Pictures/x.py",
+		"~/Movies/x.py",
+		"~/Music/x.py",
+		"~/Library/Mobile Documents/com~apple~CloudDocs/x.py",
+		"~/Library/CloudStorage/GoogleDrive/x.py",
+		filepath.Join(sahteEv, "Desktop", "x.py"),
+		filepath.Join(sahteEv, "Documents", "alt", "x.py"),
+	}
+	for _, y := range tccYasak {
+		if tccGuvenliBetikYoluMu(y) {
+			t.Errorf("TCC korumalı yol reddedilmeliydi: %q", y)
+		}
+	}
+
+	if runtime.GOOS == "darwin" {
+		// macOS'ta /home (autofs), /Volumes, /net, /Network sözlüksel katmanda (/home'a hiç dokunmadan!) reddedilmeli
+		agYasak := []string{
+			"/home/foo/bar.py",
+			"/System/Volumes/Data/home/foo/bar.py",
+			"/Volumes/Share/x.py",
+			"/net/sunucu/x.py",
+			"/Network/Servers/x.py",
+		}
+		for _, y := range agYasak {
+			if yerelYolMu(y) {
+				t.Errorf("yerelYolMu ağ yolunu reddetmeliydi: %q", y)
+			}
+			if tccGuvenliBetikYoluMu(y) {
+				t.Errorf("tccGuvenliBetikYoluMu ağ yolunu reddetmeliydi: %q", y)
+			}
+		}
+
+		// Ağ diskine işaret eden yerel sembolik bağlantı da hedefe dokunmadan reddedilmeli
+		gec := t.TempDir()
+		bag := filepath.Join(gec, "ag_baglantisi.py")
+		if err := os.Symlink("/Volumes/Share/uzak.py", bag); err == nil {
+			if yerelYolMu(bag) || tccGuvenliBetikYoluMu(bag) {
+				t.Fatalf("/Volumes hedefine işaret eden sembolik bağlantı reddedilmeliydi")
+			}
+		}
+		masaustuBag := filepath.Join(gec, "masaustu_bag.py")
+		if err := os.Symlink(filepath.Join(sahteEv, "Desktop", "gizli.py"), masaustuBag); err == nil {
+			if tccGuvenliBetikYoluMu(masaustuBag) {
+				t.Fatalf("Desktop hedefine işaret eden sembolik bağlantı reddedilmeliydi")
+			}
+		}
+	}
+
+	// Yerel güvenli geçici klasördeki betik kabul edilmeli
+	guvenli := filepath.Join(t.TempDir(), "normal_gonder.py")
+	_ = os.WriteFile(guvenli, []byte("# ok\n"), 0o600)
+	if !tccGuvenliBetikYoluMu(guvenli) {
+		t.Fatalf("yerel geçici betik yolu kabul edilmeliydi: %q", guvenli)
 	}
 }

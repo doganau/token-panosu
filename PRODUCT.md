@@ -14,8 +14,8 @@ Eşleştirilmiş bilgisayarlardaki yerel oturum günlüklerini (girdi, çıktı,
 
 ## Positioning
 - **%100 Ücretsiz Barındırma:** Cloudflare Workers + D1 ücretsiz katmanı üzerinde kredi kartı gerektirmeden çalışır.
-- **Sıfır Müdahale & Gizlilik:** Yalnızca yerel günlük dosyalarını pasif olarak okur; sağlayıcılara fazladan API isteği atmaz, sohbet metinlerini veya gizli anahtarları asla sunucuya göndermez.
-- **Kriptografik Güven:** Gönderimler cihaza özel rastgele üretilen anahtarla HMAC-SHA256 imzalıdır; istemci ikili güncellemeleri RSA-3072 açık anahtarıyla doğrulanır; ortak hesap kilidi yalnızca yerel kimliklerin SHA-256 özetini karşılaştırır.
+- **Sıfır Müdahale & Derleme Zamanı İzolasyonu:** Yalnızca yerel günlük dosyalarını pasif olarak okur; sağlayıcılara fazladan API isteği atmaz, sohbet metinlerini veya gizli anahtarları asla sunucuya göndermez. Cihaz başına seçilen sağlayıcı kombinasyonuna (`c`, `g`, `m`, `cg`, `cm`, `gm`, `cgm`) göre izole derlenmiş ikilide izin verilmeyen sağlayıcının okuma kodu bile bulunmaz; macOS'ta yalnızca yerel APFS diskleri taranarak ağ diski izin pencereleri tetiklenmez.
+- **Kriptografik Güven & Otomatik Güncelleme:** Gönderimler cihaza özel anahtarla HMAC-SHA256 + sürüm/ikili mührüyle doğrulanır; istemci ikili güncellemeleri RSA-3072 açık anahtarıyla imzalanır; açık kaynak çatallar GitHub Actions veya `npm run guncelle` ile ana depodaki yeni sürümlere otomatik güncellenebilir.
 
 ## Operating Context
 - Hafta sıfırlama günü/saati ve IANA saat dilimi `/pano/ayarlar` üzerinden serbestçe seçilebilir (varsayılan: `Europe/Istanbul`, Cumartesi `09:00`).
@@ -26,7 +26,7 @@ Eşleştirilmiş bilgisayarlardaki yerel oturum günlüklerini (girdi, çıktı,
 ## Capabilities and Constraints
 - Cloudflare Workers + D1 (ücretsiz katman), `workers.dev` veya özel alan adı.
 - Vanilla HTML/CSS/JS, haricî ön yüz çerçevesi veya derleme adımı yok; Worker'dan doğrudan servis edilir.
-- Çoklu sağlayıcı: Claude Code (`claude`), OpenAI Codex CLI (`chatgpt`) ve Gemini CLI (`gemini`).
+- Çoklu sağlayıcı: Claude Code (`claude`), OpenAI Codex CLI (`chatgpt`) ve Gemini CLI + Google Antigravity (`gemini` — `Gemini 4 Carbon`, `Argon`, `3.8 Flash`, `3.5 Flash`, `Claude Opus 5.5` dahil).
 - Resmî API fiyat listesi günlük otomatik yenilenir ve istenirse `/pano/ayarlar/fiyatlar` üzerinden model bazında elle ezilebilir.
 
 ## Product Principles

@@ -1,3 +1,5 @@
+//go:build sag_claude || (!sag_gemini && !sag_chatgpt)
+
 package main
 
 // Kayıt dosyalarını okuyup saat/model/oturum bazında toplar.
@@ -21,52 +23,10 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strings"
 	"time"
 )
-
-type Satir struct {
-	H        int64  `json:"h"`
-	Model    string `json:"model"`
-	Sid      string `json:"sid"`
-	Input    int64  `json:"input"`
-	Output   int64  `json:"output"`
-	Cw5m     int64  `json:"cw5m"`
-	Cw1h     int64  `json:"cw1h"`
-	Cr       int64  `json:"cr"`
-	Messages int64  `json:"messages"`
-}
-
-type Dilim struct {
-	T        int64  `json:"t"`
-	Model    string `json:"model"`
-	Sid      string `json:"sid"`
-	Input    int64  `json:"input"`
-	Output   int64  `json:"output"`
-	Cw5m     int64  `json:"cw5m"`
-	Cw1h     int64  `json:"cw1h"`
-	Cr       int64  `json:"cr"`
-	Messages int64  `json:"messages"`
-}
-
-type Bulgu struct {
-	K string `json:"k"`
-	S string `json:"s"` // "s" şüpheli, "d" dikkat
-	T string `json:"t"`
-}
-
-type sonuc struct {
-	satirlar       []Satir
-	dilimler       []Dilim
-	bulgular       []Bulgu
-	okunan         int
-	sure           time.Duration
-	devir          map[string]string // bu turda taranan dosyalardan kökü kendisinden farklı olan sid -> kök (en çok 200)
-	limitT         int64             // govdeye eklenen limit bilgisinin zamani (0: eklenmedi)
-	limitSaglayici map[string]int64  // diger saglayicilar icin eklenen limit zamanlari
-}
 
 var bulgular []Bulgu
 
@@ -178,81 +138,14 @@ func onbellekKaydet(o *onbellek) {
 var apiOrtam = []string{"ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL",
 	"CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY"}
 
-func genislet(p string) string {
-	if p == "~" || strings.HasPrefix(p, "~/") || strings.HasPrefix(p, `~\`) {
-		return filepath.Join(evDizini(), p[1:])
-	}
-	return p
-}
-
-func gercekYol(p string) string {
-	if g, err := filepath.EvalSymlinks(p); err == nil {
-		return g
-	}
-	if a, err := filepath.Abs(p); err == nil {
-		return a
-	}
-	return p
-}
-
-func klasorMu(p string) bool {
-	st, err := os.Stat(p)
-	return err == nil && st.IsDir()
-}
-
-// yolEngelMi: var olan bir kayıt klasörünün okuma izni kapatılmışsa (chmod 000) ya da klasör yerine
-// dosya / /dev/null bağlantısı konulmuşsa true döner; klasör hiç yoksa false döner.
-func yolEngelMi(p string) bool {
-	if p == "" {
-		return false
-	}
-	if _, err := os.Lstat(p); err != nil {
-		return false
-	}
-	st, err := os.Stat(p)
-	if err != nil {
-		return errors.Is(err, fs.ErrPermission)
-	}
-	if !st.IsDir() {
-		return true
-	}
-	f, err := os.Open(p)
-	if err != nil {
-		return errors.Is(err, fs.ErrPermission)
-	}
-	_ = f.Close()
-	return false
-}
-
-// dosyaEngelMi: var olan bir kayıt dosyasının okuma izni kapatılmışsa ya da normal dosya yerine
-// /dev/null vb. özel bir hedefe yönlendirilmişse true döner; dosya hiç yoksa false döner.
-func dosyaEngelMi(p string) bool {
-	if p == "" {
-		return false
-	}
-	if _, err := os.Lstat(p); err != nil {
-		return false
-	}
-	st, err := os.Stat(p)
-	if err != nil {
-		return errors.Is(err, fs.ErrPermission)
-	}
-	if !st.Mode().IsRegular() {
-		return true
-	}
-	f, err := os.Open(p)
-	if err != nil {
-		return errors.Is(err, fs.ErrPermission)
-	}
-	_ = f.Close()
-	return false
-}
-
 func kaynaklar() []string {
 	ev := evDizini()
 	var liste []string
 	gorulen := map[string]bool{}
 	ekle := func(y string) bool {
+		if y == "" || !yerelYolMu(y) {
+			return false
+		}
 		g := gercekYol(y)
 		if gorulen[g] {
 			return false
@@ -267,12 +160,17 @@ func kaynaklar() []string {
 		ekle(filepath.Join(genislet(cfg), "projects"))
 		bulgu("config_dir_claude", "d", "CLAUDE_CONFIG_DIR ayarlı: kayıtlar farklı bir klasörde (o da sayılıyor)")
 	}
-	for _, desen := range []string{".claude*", ".config/claude*", ".local/share/claude*"} {
-		esler, _ := filepath.Glob(filepath.Join(ev, filepath.FromSlash(desen)))
-		for _, d := range esler {
-			pr := filepath.Join(d, "projects")
-			if klasorMu(pr) && ekle(pr) {
-				bulgu("ek_klasor_claude", "d", fmt.Sprintf("Ek Claude klasörü var: %s (o da sayılıyor)", filepath.Base(d)))
+	if yerelYolMu(ev) {
+		for _, desen := range []string{".claude*", ".config/claude*", ".local/share/claude*"} {
+			esler, _ := filepath.Glob(filepath.Join(ev, filepath.FromSlash(desen)))
+			for _, d := range esler {
+				if !yerelYolMu(d) {
+					continue
+				}
+				pr := filepath.Join(d, "projects")
+				if klasorMu(pr) && ekle(pr) {
+					bulgu("ek_klasor_claude", "d", fmt.Sprintf("Ek Claude klasörü var: %s (o da sayılıyor)", filepath.Base(d)))
+				}
 			}
 		}
 	}
@@ -338,6 +236,9 @@ func ortamKontrol(klasorler []string) {
 	}
 	sort.Strings(yollar)
 	for _, yol := range yollar {
+		if !yerelYolMu(yol) {
+			continue
+		}
 		b, err := os.ReadFile(yol)
 		if err != nil {
 			continue
@@ -369,28 +270,8 @@ func ortamKontrol(klasorler []string) {
 			}
 		}
 	}
-	if runtime.GOOS != "windows" {
-		if exe, err := os.Executable(); err == nil {
-			if st, err := os.Stat(exe); err == nil && st.Mode().Perm()&0o022 != 0 {
-				bulgu("dosya_izni", "d", "Gönderici dosyası başkaları tarafından yazılabilir")
-			}
-		}
-	}
-	ben := gercekYol(evDizini())
-	for _, desen := range []string{"/Users/*/.claude/projects", "/home/*/.claude/projects", `C:\Users\*\.claude\projects`} {
-		if runtime.GOOS == "windows" && strings.HasPrefix(desen, "/") || runtime.GOOS != "windows" && strings.HasPrefix(desen, "C:") {
-			continue
-		}
-		esler, _ := filepath.Glob(desen)
-		for _, pr := range esler {
-			ev := filepath.Dir(filepath.Dir(pr))
-			if gercekYol(ev) == ben {
-				continue
-			}
-			if j, _ := filepath.Glob(filepath.Join(pr, "*", "*.jsonl")); len(j) > 0 {
-				bulgu("baska_kullanici_claude", "d", "Bu bilgisayarda başka bir kullanıcı hesabında da Claude Code kullanılmış (sayılmıyor)")
-			}
-		}
+	if b := dosyaIzniBulgusu(); b != nil {
+		bulgu(b.K, b.S, b.T)
 	}
 }
 
@@ -559,20 +440,6 @@ func (r *okuyucu) satir(b []byte) (kayit, bool) {
 	return k, true
 }
 
-// Okunmuş kısmın başındaki ve sonundaki (en çok) 256 baytın özeti: dosya yalnızca büyüdüyse aynı kalır
-func basOzeti(f *os.File, ofset int64) uint64 { return aralikOzeti(f, 0, min(ofset, 256)) }
-func kuyrukOzeti(f *os.File, ofset int64) uint64 {
-	n := min(ofset, 256)
-	return aralikOzeti(f, ofset-n, n)
-}
-func aralikOzeti(f *os.File, bas, n int64) uint64 {
-	b := make([]byte, n)
-	m, _ := f.ReadAt(b, bas)
-	h := fnv.New64a()
-	h.Write(b[:m])
-	return h.Sum64()
-}
-
 // Dosyayı (gerekiyorsa) okur ve önbellek kaydını günceller. nil: dosya açılamadı.
 func (r *okuyucu) dosya(yol string, st fs.FileInfo, eski *dosyaKaydi) (*dosyaKaydi, bool) {
 	boyut, mt := st.Size(), st.ModTime().UnixNano()
@@ -634,8 +501,6 @@ func (r *okuyucu) dosya(yol string, st fs.FileInfo, eski *dosyaKaydi) (*dosyaKay
 
 // ---------- toplama ----------
 
-type sayac struct{ in, out, w5, w1, cr, msg int64 }
-
 func (s *sayac) ekle(k *kayit) {
 	s.in += k.In
 	s.out += k.Out
@@ -671,12 +536,6 @@ func (u sidBirlesim) birlestir(a, b string) {
 	u[rb] = ra
 }
 
-type grupAnahtari struct {
-	zaman int64
-	model string
-	sid   string
-}
-
 func topla(simdi int64) sonuc {
 	bas := time.Now()
 	bulgular = nil
@@ -703,7 +562,16 @@ func topla(simdi int64) sonuc {
 	okunan := 0
 	kuculen := false
 	for _, kok := range klasorler {
+		if !yerelYolMu(kok) {
+			continue
+		}
 		_ = filepath.WalkDir(kok, func(yol string, e fs.DirEntry, err error) error {
+			if !yerelYolMu(yol) {
+				if e != nil && e.IsDir() && yol != kok {
+					return fs.SkipDir
+				}
+				return nil
+			}
 			if err != nil {
 				if errors.Is(err, fs.ErrPermission) {
 					bulgu("engel_claude", "s", "Claude kayıt klasörü veya alt dizini okunamıyor: kullanım gizleniyor olabilir")
@@ -885,7 +753,7 @@ func topla(simdi int64) sonuc {
 	var silinenTok int64
 	yediGunOnce := simdi - 7*86400
 	for yol, eskiD := range eskiDosyalar {
-		if _, var_ := yeni[yol]; var_ || eskiD == nil {
+		if _, var_ := yeni[yol]; var_ || eskiD == nil || !yerelYolMu(yol) {
 			continue
 		}
 		if _, err := os.Stat(yol); !errors.Is(err, fs.ErrNotExist) {

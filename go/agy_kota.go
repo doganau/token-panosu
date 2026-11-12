@@ -1,3 +1,5 @@
+//go:build sag_gemini || (!sag_claude && !sag_chatgpt)
+
 package main
 
 // Antigravity CLI (agy) resmi durum satırı (statusLine) bağlantısı ve sessiz kota yenileyici.
@@ -24,7 +26,6 @@ import (
 	"encoding/json"
 	"math"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -398,11 +399,17 @@ func agyKuruldaIsaretle(ham map[string]json.RawMessage, d string) error {
 func agyCliDizinleri() []string {
 	if testModu {
 		if t := os.Getenv(testAgyCliDizin); t != "" {
-			return []string{dizinAnahtari(t)}
+			k := dizinAnahtari(t)
+			if yerelYolMu(k) {
+				return []string{k}
+			}
 		}
 		return nil
 	}
 	d := varsayilanAgyCliDizini()
+	if !yerelYolMu(d) {
+		return nil
+	}
 	if klasorMu(d) || agyIkiliBul() != "" {
 		return []string{d}
 	}
@@ -410,6 +417,9 @@ func agyCliDizinleri() []string {
 }
 
 func agyDurumSatiriKurDizin(d string) error {
+	if !yerelYolMu(d) {
+		return os.ErrPermission
+	}
 	if err := os.MkdirAll(d, 0o700); err != nil {
 		return err
 	}
@@ -516,6 +526,9 @@ func agyDurumSatiriKaldir() {
 		adaylar = append(adaylar, varsayilan)
 	}
 	for _, d := range adaylar {
+		if !yerelYolMu(d) {
+			continue
+		}
 		yol := filepath.Join(d, "settings.json")
 		m, _, err := ayarlarOku(yol)
 		if err != nil {
@@ -534,11 +547,23 @@ func agyDurumSatiriKaldir() {
 	}
 }
 
-// ---------- agy ikili bulucu ve sessiz PTY kota yenilemesi ----------
+// ---------- agy ikili bulucu (ağ yollarına dokunmadan) ve sessiz PTY kota yenilemesi ----------
 
 func agyIkiliBul() string {
 	ev := evDizini()
 	var adaylar []string
+	ikiliAd := "agy"
+	if runtime.GOOS == "windows" {
+		ikiliAd = "agy.exe"
+	}
+	// PATH dizinlerini yerelYolMu süzgecinden geçirerek tara (exec.LookPath /home autofs yollarına dokunmasın)
+	for _, dir := range filepath.SplitList(os.Getenv("PATH")) {
+		dir = strings.TrimSpace(dir)
+		if dir == "" || !yerelYolMu(dir) {
+			continue
+		}
+		adaylar = append(adaylar, filepath.Join(dir, ikiliAd))
+	}
 	if runtime.GOOS == "windows" {
 		if la := os.Getenv("LOCALAPPDATA"); la != "" {
 			adaylar = append(adaylar,
@@ -560,20 +585,18 @@ func agyIkiliBul() string {
 			"/usr/bin/agy",
 		)
 	}
-	if p, err := exec.LookPath("agy"); err == nil && p != "" {
-		if runtime.GOOS != "windows" || strings.HasSuffix(strings.ToLower(p), ".exe") {
-			adaylar = append([]string{p}, adaylar...)
-		} else {
-			adaylar = append(adaylar, p)
-		}
-	}
 	for _, y := range adaylar {
-		if y == "" {
+		if y == "" || !yerelYolMu(y) {
 			continue
 		}
-		if st, err := os.Stat(y); err == nil && st.Mode().IsRegular() && st.Size() > 0 {
-			return y
+		st, err := os.Stat(y)
+		if err != nil || !st.Mode().IsRegular() || st.Size() <= 0 {
+			continue
 		}
+		if runtime.GOOS != "windows" && st.Mode()&0o111 == 0 {
+			continue
+		}
+		return y
 	}
 	return ""
 }

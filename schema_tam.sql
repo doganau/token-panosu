@@ -14,7 +14,9 @@ CREATE TABLE IF NOT EXISTS devices (
   uye_id TEXT NOT NULL DEFAULT '',
   bildirim_son INTEGER NOT NULL DEFAULT 0,
   hesaplar TEXT NOT NULL DEFAULT '{}',
-  hesap_eposta TEXT NOT NULL DEFAULT '{}'
+  hesap_eposta TEXT NOT NULL DEFAULT '{}',
+  izinli_saglayici TEXT NOT NULL DEFAULT '',
+  calisan_paket TEXT NOT NULL DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS haric (
   device_id TEXT NOT NULL,
@@ -56,7 +58,9 @@ CREATE TABLE IF NOT EXISTS pair_codes (
   code TEXT PRIMARY KEY,
   label TEXT NOT NULL,
   expires_at INTEGER NOT NULL,
-  uye_id TEXT NOT NULL DEFAULT ''
+  uye_id TEXT NOT NULL DEFAULT '',
+  izinli_saglayici TEXT NOT NULL DEFAULT '',
+  used_at INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS "usage_5m" (
   device_id TEXT NOT NULL,

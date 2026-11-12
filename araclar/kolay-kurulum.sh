@@ -185,12 +185,12 @@ if command -v go >/dev/null 2>&1; then
     ACIK_N_DEGER="$(python3 araclar/imzala.py acik-anahtar)"
     TOKEN_PANOSU_ACIK_N="$ACIK_N_DEGER" TOKEN_PANOSU_URL="${TOKEN_PANOSU_URL:-}" sh araclar/derle.sh
     python3 araclar/imzala.py imzala
-    basari "6 platform ikilisi derlendi ve RSA-3072 anahtarınızla imzalandı."
+    basari "42 izole platform/sağlayıcı ikilisi derlendi ve RSA-3072 + HMAC mührünüzle imzalandı."
   else
     uyari "python3 veya openssl bulunamadığı için ikililer imzasız modda derleniyor (otomatik ikili güncelleme kapalı)."
     TOKEN_PANOSU_ACIK_N="devre-disi" TOKEN_PANOSU_URL="${TOKEN_PANOSU_URL:-}" sh araclar/derle.sh
     printf '{\n "ikili": null\n}\n' > istemci/manifest.json
-    basari "6 platform ikilisi derlendi."
+    basari "42 izole platform/sağlayıcı ikilisi derlendi."
   fi
   IKILI_HAZIR=1
 else
@@ -210,10 +210,12 @@ SECRET_DURUM="$(SECRET_JSON="$SECRET_JSON" node -e '
   let list = [];
   try { list = JSON.parse(process.env.SECRET_JSON || "[]"); } catch {}
   const names = new Set(Array.isArray(list) ? list.map((x) => x.name) : []);
-  console.log((names.has("VIEW_KEY") ? "1" : "0") + "|" + (names.has("ADMIN_KEY") ? "1" : "0"));
+  console.log((names.has("VIEW_KEY") ? "1" : "0") + "|" + (names.has("ADMIN_KEY") ? "1" : "0") + "|" + (names.has("MUHUR_ANAHTAR") ? "1" : "0"));
 ')"
 VIEW_VAR="${SECRET_DURUM%%|*}"
-ADMIN_VAR="${SECRET_DURUM#*|}"
+KALAN_SEC="${SECRET_DURUM#*|}"
+ADMIN_VAR="${KALAN_SEC%%|*}"
+MUHUR_VAR="${KALAN_SEC#*|}"
 
 if [ "$ADMIN_VAR" != "1" ]; then
   YENI_ADMIN="$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")"
@@ -221,6 +223,14 @@ if [ "$ADMIN_VAR" != "1" ]; then
   basari "Oturum imzalama anahtarı (ADMIN_KEY) otomatik üretildi ve kaydedildi."
 else
   basari "ADMIN_KEY zaten tanımlı."
+fi
+
+if [ "$MUHUR_VAR" != "1" ] && command -v python3 >/dev/null 2>&1; then
+  MUHUR_HEX="$(python3 araclar/imzala.py muhur-anahtar 2>/dev/null || true)"
+  if [ -n "$MUHUR_HEX" ]; then
+    printf '%s' "$MUHUR_HEX" | wrangler secret put MUHUR_ANAHTAR >/dev/null
+    basari "İkili kriptografik mühür anahtarı (MUHUR_ANAHTAR) otomatik kaydedildi."
+  fi
 fi
 
 SIFRE_AYARLA=1

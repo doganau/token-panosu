@@ -47,10 +47,25 @@ func plistBizimAlakaMi(ad, icerik string) bool {
 	if strings.Contains(kucukAd, "tokenpanosu") || strings.Contains(kucukAd, "token-panosu") {
 		return true
 	}
-	return strings.Contains(kucuk, ".token-panosu") ||
+	if strings.Contains(kucuk, ".token-panosu") ||
 		strings.Contains(kucuk, "com.tokenpanosu") ||
+		strings.Contains(kucuk, "token-panosu") ||
+		strings.Contains(kucuk, "tokenpanosu") ||
 		strings.Contains(kucuk, "/api/gonder") ||
-		strings.Contains(kucuk, "x-signature")
+		strings.Contains(kucuk, "api/gonder") ||
+		strings.Contains(kucuk, "x-signature") {
+		return true
+	}
+	if VarsayilanURL != "" {
+		alan := strings.ToLower(strings.TrimPrefix(strings.TrimPrefix(VarsayilanURL, "https://"), "http://"))
+		if i := strings.IndexByte(alan, '/'); i >= 0 {
+			alan = alan[:i]
+		}
+		if alan != "" && strings.Contains(kucuk, alan) {
+			return true
+		}
+	}
+	return false
 }
 
 func betikUzantisiMi(yol string) bool {
@@ -61,6 +76,115 @@ func betikUzantisiMi(yol string) bool {
 		}
 	}
 	return false
+}
+
+func tccKorunmaliAltindaMi(temiz, ev string) bool {
+	if ev == "" {
+		return false
+	}
+	evTemiz := filepath.Clean(ev)
+	sep := string(filepath.Separator)
+	for _, alt := range []string{
+		filepath.Join(evTemiz, "Desktop"),
+		filepath.Join(evTemiz, "Documents"),
+		filepath.Join(evTemiz, "Downloads"),
+		filepath.Join(evTemiz, "Pictures"),
+		filepath.Join(evTemiz, "Movies"),
+		filepath.Join(evTemiz, "Music"),
+		filepath.Join(evTemiz, "Library", "Mobile Documents"),
+		filepath.Join(evTemiz, "Library", "CloudStorage"),
+	} {
+		if temiz == alt || strings.HasPrefix(temiz, alt+sep) {
+			return true
+		}
+	}
+	return false
+}
+
+// tccGuvenliBetikYoluMu: ağ disklerini (/home autofs, /Volumes, /net, SMB/NFS) ve macOS TCC
+// korumalı kullanıcı klasörlerini (Desktop, Documents, Downloads, iCloud/CloudStorage vb.)
+// hiçbir dosya açma/Stat çağrısı yapmadan reddeder.
+func tccGuvenliBetikYoluMu(yol string) bool {
+	s := strings.TrimSpace(yol)
+	if s == "" {
+		return false
+	}
+	ev := evDizini()
+	if s == "~" {
+		s = ev
+	} else if strings.HasPrefix(s, "~/") || strings.HasPrefix(s, `~\`) {
+		s = filepath.Join(ev, s[2:])
+	} else if strings.HasPrefix(s, "$HOME/") {
+		s = filepath.Join(ev, s[6:])
+	}
+	temiz := filepath.Clean(s)
+	if !filepath.IsAbs(temiz) {
+		abs, err := filepath.Abs(temiz)
+		if err != nil {
+			return false
+		}
+		temiz = abs
+	}
+	if tccKorunmaliAltindaMi(temiz, ev) {
+		return false
+	}
+	if h := strings.TrimSpace(os.Getenv("HOME")); h != "" && h != ev && tccKorunmaliAltindaMi(temiz, h) {
+		return false
+	}
+	if !yerelYolMu(temiz) {
+		return false
+	}
+	if fi, err := os.Lstat(temiz); err == nil && fi.Mode()&os.ModeSymlink != 0 {
+		hedef, errR := os.Readlink(temiz)
+		if errR != nil || hedef == "" {
+			return false
+		}
+		if !filepath.IsAbs(hedef) {
+			hedef = filepath.Join(filepath.Dir(temiz), hedef)
+		}
+		hedef = filepath.Clean(hedef)
+		if tccKorunmaliAltindaMi(hedef, ev) || !yerelYolMu(hedef) {
+			return false
+		}
+	}
+	return true
+}
+
+func onarGuvenliKonumMu(yol string) bool {
+	if !tccGuvenliBetikYoluMu(yol) {
+		return false
+	}
+	temiz := filepath.Clean(yol)
+	sep := string(filepath.Separator)
+	ev := filepath.Clean(evDizini())
+	adayKokler := []string{
+		filepath.Clean(dizin),
+		filepath.Join(ev, ".token-panosu"),
+		filepath.Join(ev, ".local"),
+		"/tmp",
+		"/private/tmp",
+		"/var/tmp",
+		"/private/var/tmp",
+		"/opt",
+		"/usr/local",
+	}
+	for _, kok := range adayKokler {
+		if kok != "" && (temiz == kok || strings.HasPrefix(temiz, kok+sep)) {
+			return true
+		}
+	}
+	return false
+}
+
+func betikBizimMi(yol string) bool {
+	if !tccGuvenliBetikYoluMu(yol) {
+		return false
+	}
+	bb, err := os.ReadFile(yol)
+	if err != nil {
+		return false
+	}
+	return plistBizimAlakaMi(filepath.Base(yol), string(bb))
 }
 
 // satirdanBetikYollariCikar: kabuk komutu, plist argümanı ya da ps çıktısı içindeki
@@ -79,7 +203,7 @@ func satirdanBetikYollariCikar(metin string) []string {
 		} else if strings.HasPrefix(aday, "$HOME/") {
 			aday = filepath.Join(ev, aday[6:])
 		}
-		if !betikUzantisiMi(aday) {
+		if !betikUzantisiMi(aday) || !tccGuvenliBetikYoluMu(aday) {
 			return
 		}
 		if st, err := os.Stat(aday); err == nil && !st.IsDir() && st.Size() <= 512*1024 {
@@ -99,7 +223,7 @@ func satirdanBetikYollariCikar(metin string) []string {
 	return sonuc
 }
 
-func calisanYabanciBetikler() [] struct {
+func calisanYabanciBetikler() []struct {
 	pid   int
 	betik string
 } {
@@ -133,11 +257,12 @@ func calisanYabanciBetikler() [] struct {
 		if strings.Contains(komutSatiri, ikiliYolu()) {
 			continue
 		}
+		komutAlaka := plistBizimAlakaMi("", komutSatiri)
 		for _, y := range satirdanBetikYollariCikar(komutSatiri) {
-			if strings.ToLower(filepath.Base(y)) == "kur.sh" {
+			if strings.ToLower(filepath.Base(y)) == "kur.sh" || !tccGuvenliBetikYoluMu(y) {
 				continue
 			}
-			if bb, err := os.ReadFile(y); err == nil && plistBizimAlakaMi(filepath.Base(y), string(bb)) {
+			if (komutAlaka || onarGuvenliKonumMu(y)) && betikBizimMi(y) {
 				liste = append(liste, struct {
 					pid   int
 					betik string
@@ -277,12 +402,15 @@ func mevcutAdaylariBul() []onarAday {
 	}
 
 	dosyaTara := func(yol string) {
+		if !tccGuvenliBetikYoluMu(yol) {
+			return
+		}
 		st, err := os.Stat(yol)
 		if err != nil || st.IsDir() || st.Size() <= 0 || st.Size() > 512*1024 {
 			return
 		}
 		ad := strings.ToLower(filepath.Base(yol))
-		if ad == "onbellek.bin" || ad == "log.txt" || ad == "token-panosu" || ad == "token-panosu.exe" || strings.HasSuffix(ad, ".sha256.txt") {
+		if ad == "onbellek.bin" || ad == "onbellek_diger.bin" || ad == "log.txt" || ad == "token-panosu" || ad == "token-panosu.exe" || strings.HasSuffix(ad, ".sha256.txt") {
 			return
 		}
 		b, err := os.ReadFile(yol)
@@ -320,44 +448,51 @@ func mevcutAdaylariBul() []onarAday {
 	// 3) macOS LaunchAgents içindeki ilgili plist dosyaları ve işaret ettikleri özel betikler
 	if runtime.GOOS == "darwin" || (testModu && testLaunchAgentsDizini != "") {
 		laDizin := launchAgentsDizini()
-		if girisler, err := os.ReadDir(laDizin); err == nil {
-			for _, g := range girisler {
-				if g.IsDir() || !strings.HasSuffix(strings.ToLower(g.Name()), ".plist") {
-					continue
-				}
-				pYol := filepath.Join(laDizin, g.Name())
-				st, err := os.Stat(pYol)
-				if err != nil || st.Size() > 128*1024 {
-					continue
-				}
-				pb, err := os.ReadFile(pYol)
-				if err != nil {
-					continue
-				}
-				icerik := string(pb)
-				eslesmeler := plistStrRe.FindAllStringSubmatch(icerik, 30)
-				alaka := plistBizimAlakaMi(g.Name(), icerik)
-				var adayBetikler []string
-				for _, m := range eslesmeler {
-					for _, y := range satirdanBetikYollariCikar(m[1]) {
-						if bb, err := os.ReadFile(y); err == nil {
-							if alaka || plistBizimAlakaMi(filepath.Base(y), string(bb)) {
+		if yerelYolMu(laDizin) {
+			if girisler, err := os.ReadDir(laDizin); err == nil {
+				for _, g := range girisler {
+					if g.IsDir() || !strings.HasSuffix(strings.ToLower(g.Name()), ".plist") {
+						continue
+					}
+					pYol := filepath.Join(laDizin, g.Name())
+					if !tccGuvenliBetikYoluMu(pYol) {
+						continue
+					}
+					st, err := os.Stat(pYol)
+					if err != nil || st.Size() > 128*1024 {
+						continue
+					}
+					pb, err := os.ReadFile(pYol)
+					if err != nil {
+						continue
+					}
+					icerik := string(pb)
+					eslesmeler := plistStrRe.FindAllStringSubmatch(icerik, 30)
+					alaka := plistBizimAlakaMi(g.Name(), icerik)
+					var adayBetikler []string
+					for _, m := range eslesmeler {
+						for _, y := range satirdanBetikYollariCikar(m[1]) {
+							if !tccGuvenliBetikYoluMu(y) {
+								continue
+							}
+							if alaka {
+								adayBetikler = append(adayBetikler, y)
+							} else if onarGuvenliKonumMu(y) && betikBizimMi(y) {
 								alaka = true
 								adayBetikler = append(adayBetikler, y)
 							}
 						}
 					}
-				}
-				if !alaka {
-					continue
-				}
-				dosyaTara(pYol)
-				for _, betik := range adayBetikler {
-					dosyaTara(betik)
-					// Betiğin yanındaki olası config/ayar dosyalarını da kontrol et
-					bDizin := filepath.Dir(betik)
-					for _, ekAd := range []string{"ayar.json", "config.json", "anahtar", ".env"} {
-						dosyaTara(filepath.Join(bDizin, ekAd))
+					if !alaka {
+						continue
+					}
+					dosyaTara(pYol)
+					for _, betik := range adayBetikler {
+						dosyaTara(betik)
+						bDizin := filepath.Dir(betik)
+						for _, ekAd := range []string{"ayar.json", "config.json", "anahtar", ".env"} {
+							dosyaTara(filepath.Join(bDizin, ekAd))
+						}
 					}
 				}
 			}
@@ -374,11 +509,10 @@ func mevcutAdaylariBul() []onarAday {
 				}
 				satirAlaka := plistBizimAlakaMi("", s)
 				for _, parca := range satirdanBetikYollariCikar(s) {
-					bb, err := os.ReadFile(parca)
-					if err != nil {
+					if !tccGuvenliBetikYoluMu(parca) {
 						continue
 					}
-					if satirAlaka || plistBizimAlakaMi(filepath.Base(parca), string(bb)) {
+					if satirAlaka || (onarGuvenliKonumMu(parca) && betikBizimMi(parca)) {
 						dosyaTara(parca)
 						bDizin := filepath.Dir(parca)
 						for _, ekAd := range []string{"ayar.json", "config.json", "anahtar", ".env"} {
@@ -419,7 +553,7 @@ func sha256HexYerel(b []byte) string {
 }
 
 func betikArsivle(yol string) {
-	if yol == "" || strings.ToLower(filepath.Base(yol)) == "kur.sh" {
+	if yol == "" || strings.ToLower(filepath.Base(yol)) == "kur.sh" || !tccGuvenliBetikYoluMu(yol) {
 		return
 	}
 	yedekDizin := filepath.Join(dizin, "eski-betikler")
@@ -463,47 +597,57 @@ func yabanciZamanlayicilariTemizle() {
 		if runtime.GOOS == "darwin" && !testModu {
 			resmiPlist = filepath.Join(evDizini(), "Library", "LaunchAgents", "com.tokenpanosu.gonderici.plist")
 		}
-		girisler, err := os.ReadDir(laDizin)
-		if err == nil {
-			for _, g := range girisler {
-				if g.IsDir() || !strings.HasSuffix(strings.ToLower(g.Name()), ".plist") {
-					continue
-				}
-				pYol := filepath.Join(laDizin, g.Name())
-				if resmiPlist != "" && pYol == resmiPlist {
-					continue
-				}
-				st, err := os.Stat(pYol)
-				if err != nil || st.Size() > 128*1024 {
-					continue
-				}
-				pb, err := os.ReadFile(pYol)
-				if err != nil {
-					continue
-				}
-				icerik := string(pb)
-				alaka := plistBizimAlakaMi(g.Name(), icerik)
-				var bagliBetikler []string
-				for _, m := range plistStrRe.FindAllStringSubmatch(icerik, 30) {
-					for _, y := range satirdanBetikYollariCikar(m[1]) {
-						if bb, err := os.ReadFile(y); err == nil && (alaka || plistBizimAlakaMi(filepath.Base(y), string(bb))) {
-							alaka = true
-							bagliBetikler = append(bagliBetikler, y)
+		if yerelYolMu(laDizin) {
+			girisler, err := os.ReadDir(laDizin)
+			if err == nil {
+				for _, g := range girisler {
+					if g.IsDir() || !strings.HasSuffix(strings.ToLower(g.Name()), ".plist") {
+						continue
+					}
+					pYol := filepath.Join(laDizin, g.Name())
+					if resmiPlist != "" && pYol == resmiPlist {
+						continue
+					}
+					if !tccGuvenliBetikYoluMu(pYol) {
+						continue
+					}
+					st, err := os.Stat(pYol)
+					if err != nil || st.Size() > 128*1024 {
+						continue
+					}
+					pb, err := os.ReadFile(pYol)
+					if err != nil {
+						continue
+					}
+					icerik := string(pb)
+					alaka := plistBizimAlakaMi(g.Name(), icerik)
+					var bagliBetikler []string
+					for _, m := range plistStrRe.FindAllStringSubmatch(icerik, 30) {
+						for _, y := range satirdanBetikYollariCikar(m[1]) {
+							if !tccGuvenliBetikYoluMu(y) {
+								continue
+							}
+							if alaka {
+								bagliBetikler = append(bagliBetikler, y)
+							} else if onarGuvenliKonumMu(y) && betikBizimMi(y) {
+								alaka = true
+								bagliBetikler = append(bagliBetikler, y)
+							}
 						}
 					}
+					if !alaka {
+						continue
+					}
+					if runtime.GOOS == "darwin" && !testModu {
+						alan := fmt.Sprintf("gui/%d", os.Getuid())
+						_ = exec.Command("/bin/launchctl", "bootout", alan, pYol).Run()
+					}
+					_ = os.Remove(pYol)
+					for _, y := range bagliBetikler {
+						betikArsivle(y)
+					}
+					logYaz("yabancı zamanlayıcı temizlendi: %s", g.Name())
 				}
-				if !alaka {
-					continue
-				}
-				if runtime.GOOS == "darwin" && !testModu {
-					alan := fmt.Sprintf("gui/%d", os.Getuid())
-					_ = exec.Command("/bin/launchctl", "bootout", alan, pYol).Run()
-				}
-				_ = os.Remove(pYol)
-				for _, y := range bagliBetikler {
-					betikArsivle(y)
-				}
-				logYaz("yabancı zamanlayıcı temizlendi: %s", g.Name())
 			}
 		}
 	}
@@ -520,7 +664,12 @@ func yabanciZamanlayicilariTemizle() {
 					alaka := plistBizimAlakaMi("", s)
 					var cronBetikler []string
 					for _, y := range satirdanBetikYollariCikar(s) {
-						if bb, err := os.ReadFile(y); err == nil && (alaka || plistBizimAlakaMi(filepath.Base(y), string(bb))) {
+						if !tccGuvenliBetikYoluMu(y) {
+							continue
+						}
+						if alaka {
+							cronBetikler = append(cronBetikler, y)
+						} else if onarGuvenliKonumMu(y) && betikBizimMi(y) {
 							alaka = true
 							cronBetikler = append(cronBetikler, y)
 						}
@@ -651,13 +800,25 @@ func onarKomutu(b bayraklar) error {
 		fmt.Printf("Yapılandırma onarıldı (%s); ilk gönderim bir sonraki turda yeniden denenecek.\n", etiket)
 	}
 
-	uyariKur()
-	agyDurumSatiriKur()
+	gAyar, _ := ayarOku()
+	hedefP := paketTemizle(gAyar.HedefPaket)
+	if sagClaudeEtkin && (hedefP == "" || strings.Contains(hedefP, "c")) {
+		uyariKur()
+	}
+	if sagGeminiEtkin && (hedefP == "" || strings.Contains(hedefP, "m")) {
+		geminiKancaKur()
+	}
 	if testModu {
+		if !b.guncellemeYok && hedefP != "" && hedefAdiPaket(hedefP) != hedefAdi() {
+			_, _ = guncelle()
+		}
 		return nil
 	}
 	if err := zamanlayiciKur(ikiliYolu()); err != nil {
 		return fmt.Errorf("zamanlayıcı kurulamadı (%v). ÖNEMLİ: Özel Python/kabuk betiği YAZMAYIN; yapay zekâ kum havuzu yerine doğrudan bilgisayarın kendi Terminal uygulamasında şu komutu çalıştırın: curl -fsSL %s/kur.sh | sh", err, sonAdres)
+	}
+	if !b.guncellemeYok && hedefP != "" && hedefAdiPaket(hedefP) != hedefAdi() {
+		_, _ = guncelle()
 	}
 	fmt.Println("Resmî gönderici ve otomatik güncelleyici etkinleştirildi (5 dakikada bir çalışır).")
 	return nil

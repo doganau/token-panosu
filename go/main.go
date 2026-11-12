@@ -1,7 +1,7 @@
 // Token Panosu gönderici (macOS, Windows, Linux).
 //
-// Bu bilgisayardaki Claude Code (CLI ve masaüstü uygulamadaki Code sekmesi) kullanımını
-// okur, saat/model/oturum bazında toplar ve panoya HMAC-SHA256 ile imzalı olarak gönderir.
+// Bu bilgisayardaki kullanım kayıtlarını okur, saat/model/oturum bazında toplar
+// ve panoya HMAC-SHA256 ile imzalı olarak gönderir.
 //
 // Gizli anahtar programın içinde değildir: kurulumda bu bilgisayarda rastgele üretilir ve
 // işletim sisteminin korumasında saklanır (macOS Anahtar Zinciri, Windows DPAPI, Linux 0600 dosya).
@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	Surum    = 31 // yeni sürüm yayınlanınca artırılır; imzalı güncelleme ve ikili mührü bunu kullanır
+	Surum    = 40 // yeni sürüm yayınlanınca artırılır; imzalı güncelleme ve ikili mührü bunu kullanır
 	Protokol = 2  // sunucu ile veri biçimi
 
 	yukEsigi      = 1.5               // 1 dk yük / çekirdek: üstündeyse (işlemci çok meşgul) otomatik çalıştırma o turu atlar
@@ -85,10 +85,11 @@ func sistemAdi() string {
 }
 
 type Ayar struct {
-	URL    string `json:"url"`
-	Cihaz  string `json:"cihaz"`
-	Etiket string `json:"etiket"`
-	// Durum satırı ve uyarı kayıtları (bkz. durum_satiri.go, uyari.go, agy_kota.go): ayarYaz bunları kaybetmesin
+	URL        string `json:"url"`
+	Cihaz      string `json:"cihaz"`
+	Etiket     string `json:"etiket"`
+	HedefPaket string `json:"hedef_paket,omitempty"`
+	// Durum satırı ve uyarı kayıtları: ayarYaz bunları kaybetmesin
 	DurumOnceki     map[string]json.RawMessage `json:"durum_satiri_onceki,omitempty"`
 	DurumKuruldu    []string                   `json:"durum_satiri_kuruldu,omitempty"`
 	UyariKuruldu    []string                   `json:"uyari_kuruldu,omitempty"`
@@ -191,26 +192,16 @@ const yardimMetni = `Token Panosu gönderici
   token-panosu onar                    kod gerekmeden mevcut kurulumu onarır ve resmî ikiliye taşır
   token-panosu gonder                  şimdi gönder
   token-panosu durum                   durumu ve son kayıtları göster
-  token-panosu guncelle                yeni sürüm varsa şimdi güncelle
+  token-panosu paket                   derlenen sağlayıcı paket kodunu göster
+  token-panosu guncelle                yeni sürüm veya paket varsa şimdi güncelle
   token-panosu kaldir                  gönderimi durdurur, anahtarı ve dosyaları siler
 `
 
 func main() {
-	if len(os.Args) > 1 && os.Args[1] == "durum-satiri" {
-		durumSatiri() // Claude Code durum satırı: hafif, konsol bağlamaz, her zaman 0 ile çıkar
-		os.Exit(0)
-	}
-	if len(os.Args) > 1 && os.Args[1] == agyDurumAnahtar {
-		agyDurumSatiri() // Antigravity CLI (agy) resmi durum satırı: kota yüzdesini kaydeder, her zaman 0 ile çıkar
-		os.Exit(0)
-	}
-	if len(os.Args) > 1 && os.Args[1] == uyariAnahtar {
-		uyariKomutu() // Claude Code kancası (her istek): yalnızca yerel dosyaya bakar, ağa çıkmaz, her zaman 0 ile çıkar
-		os.Exit(0)
-	}
-	if len(os.Args) > 1 && os.Args[1] == uyariGosterAnahtar {
-		uyariGoster()
-		os.Exit(0)
+	if len(os.Args) > 1 {
+		if (sagClaudeEtkin && claudeOzelAltKomut(os.Args[1])) || (sagGeminiEtkin && geminiOzelAltKomut(os.Args[1])) {
+			os.Exit(0)
+		}
 	}
 	runtime.GOMAXPROCS(1)   // tek çekirdek: işlemciyi bir anlığına bile zorlamasın
 	debug.SetGCPercent(400) // kısa ömürlü süreç: çöp toplayıcı daha seyrek çalışsın
@@ -236,11 +227,13 @@ func main() {
 			if oldu {
 				fmt.Println("Güncellendi. Yeni sürüm bir sonraki çalıştırmada devreye girer.")
 			} else {
-				fmt.Printf("Zaten güncel (sürüm %d).\n", Surum)
+				fmt.Printf("Zaten güncel (sürüm %d, paket %s).\n", Surum, paketKodu())
 			}
 		}
 	case "durum":
 		err = durumKomutu()
+	case "paket":
+		fmt.Println(paketKodu())
 	case "kaldir":
 		err = kaldirKomutu()
 	case "limit-sorgu": // sürüm 17'de kaldırıldı
@@ -325,6 +318,7 @@ func kurKomutu(b bayraklar) error {
 	var e struct {
 		DeviceID string `json:"device_id"`
 		Label    string `json:"label"`
+		Paket    string `json:"paket"`
 	}
 	if json.Unmarshal(cevap, &e) != nil || len(e.DeviceID) != 32 {
 		return errors.New("sunucudan beklenmeyen yanıt")
@@ -336,6 +330,9 @@ func kurKomutu(b bayraklar) error {
 	yeniAyar.URL = adres
 	yeniAyar.Cihaz = e.DeviceID
 	yeniAyar.Etiket = e.Label
+	if paketGecerliMi(e.Paket) {
+		yeniAyar.HedefPaket = paketTemizle(e.Paket)
+	}
 	if err := ayarYaz(yeniAyar); err != nil {
 		return err
 	}
@@ -343,8 +340,13 @@ func kurKomutu(b bayraklar) error {
 	if err := kendiniYerlestir(); err != nil {
 		return fmt.Errorf("program klasöre kopyalanamadı: %v", err)
 	}
-	uyariKur()
-	agyDurumSatiriKur()
+	hedefP := paketTemizle(yeniAyar.HedefPaket)
+	if sagClaudeEtkin && (hedefP == "" || strings.Contains(hedefP, "c")) {
+		uyariKur()
+	}
+	if sagGeminiEtkin && (hedefP == "" || strings.Contains(hedefP, "m")) {
+		geminiKancaKur()
+	}
 	fmt.Printf("Eşleşti: %s\n", e.Label)
 	if ok, satir := gonder(); ok {
 		fmt.Printf("İlk gönderim tamam: %d satır.\n", satir)
@@ -352,10 +354,20 @@ func kurKomutu(b bayraklar) error {
 		fmt.Println("İlk gönderim başarısız oldu; zamanlayıcı birkaç dakika içinde yeniden deneyecek.")
 	}
 	if testModu {
+		if !b.guncellemeYok {
+			if gAyar, errA := ayarOku(); errA == nil && paketGecerliMi(gAyar.HedefPaket) && hedefAdiPaket(gAyar.HedefPaket) != hedefAdi() {
+				_, _ = guncelle()
+			}
+		}
 		return nil
 	}
 	if err := zamanlayiciKur(ikiliYolu()); err != nil {
 		return fmt.Errorf("zamanlayıcı kurulamadı (%v). ÖNEMLİ: Özel Python/kabuk betiği YAZMAYIN; yapay zekâ kum havuzu yerine doğrudan bilgisayarın kendi Terminal uygulamasında şu komutu çalıştırın: curl -fsSL %s/kur.sh | sh", err, adres)
+	}
+	if !b.guncellemeYok {
+		if gAyar, errA := ayarOku(); errA == nil && paketGecerliMi(gAyar.HedefPaket) && hedefAdiPaket(gAyar.HedefPaket) != hedefAdi() {
+			_, _ = guncelle()
+		}
 	}
 	fmt.Println("Arka planda 5 dakikada bir gönderecek; bilgisayar yeniden başlayınca kendiliğinden devam eder.")
 	return nil
@@ -397,6 +409,13 @@ func gonderKomutu(b bayraklar) int {
 	defer zamanlayici.Stop()
 	oncelikDusur()
 	eskiyiTemizle()
+
+	// Sunucunun daha önce bildirdiği hedef paket mevcut ikiliden farklıysa gönderim öncesi de geçiş dene
+	if !b.guncellemeYok {
+		if onAyar, errA := ayarOku(); errA == nil && paketGecerliMi(onAyar.HedefPaket) && hedefAdiPaket(onAyar.HedefPaket) != hedefAdi() {
+			_, _ = guncelle()
+		}
+	}
 
 	ok, satir := gonder()
 	if !b.sessiz {
@@ -449,12 +468,25 @@ func gonder() (bool, int) {
 		logYaz("HATA: anahtar okunamadı: %v", err)
 		return false, 0
 	}
-	durumSatiriKaldir() // v17: durum satırından limit okunmuyor; kurulduysa önceki ayar geri konur
-	uyariKur()          // v17: limit payı dolunca her istekte uyarı
-	agyDurumSatiriKur() // v28: Antigravity CLI resmi statusLine kancası
 	eskiSorguTemizle()
 	simdi := time.Now().Unix()
-	agyKotaYenile(simdi)
+	hedefP := paketTemizle(a.HedefPaket)
+	if sagClaudeEtkin {
+		durumSatiriKaldir()
+		if hedefP == "" || strings.Contains(hedefP, "c") {
+			uyariKur()
+		} else {
+			uyariKaldir()
+		}
+	}
+	if sagGeminiEtkin {
+		if hedefP == "" || strings.Contains(hedefP, "m") {
+			geminiKancaKur()
+			geminiKotaYenile(simdi)
+		} else {
+			geminiKancaKaldir()
+		}
+	}
 	govde, s, err := govdeHazirla(simdi)
 	if err != nil {
 		logYaz("HATA: %v", err)
@@ -489,16 +521,28 @@ func gonder() (bool, int) {
 	}
 	var yanit struct {
 		Yazilan  *int             `json:"yazilan"`
-		Bildirim []bildirimOge    `json:"b"`    // sürüm 14+: gösterilecek bildirimler (en çok 3)
-		Esik     map[string]int64 `json:"esik"` // sürüm 16+: istem uzunluğuna göre fiyatlanan modellerin eşikleri
-		Asim     *asimDurumu      `json:"asim"` // sürüm 17+: bu bilgisayarın sahibi limit payını doldurduysa
+		Bildirim []bildirimOge    `json:"b"`     // sürüm 14+: gösterilecek bildirimler (en çok 3)
+		Esik     map[string]int64 `json:"esik"`  // sürüm 16+: istem uzunluğuna göre fiyatlanan modellerin eşikleri
+		Asim     *asimDurumu      `json:"asim"`  // sürüm 17+: bu bilgisayarın sahibi limit payını doldurduysa
+		Paket    string           `json:"paket"` // sürüm 40+: bu bilgisayarda izin verilen sağlayıcı paketi
 	}
 	_ = json.Unmarshal(cevap, &yanit)
+	if yp := paketTemizle(yanit.Paket); yp != "" && yp != paketTemizle(a.HedefPaket) {
+		if guncel, errA := ayarOku(); errA == nil {
+			guncel.HedefPaket = yp
+			_ = ayarYaz(guncel)
+		} else {
+			a.HedefPaket = yp
+			_ = ayarYaz(a)
+		}
+	}
 	bildirimleriIsle(yanit.Bildirim)
 	if yanit.Esik != nil {
 		esikleriKaydet(yanit.Esik)
 	}
-	asimIsle(yanit.Asim, simdi)
+	if sagClaudeEtkin {
+		asimIsle(yanit.Asim, simdi)
+	}
 	ek := ""
 	if len(s.bulgular) > 0 {
 		kodlar := make([]string, len(s.bulgular))
@@ -520,9 +564,7 @@ func govdeHazirla(simdi int64) ([]byte, sonuc, error) {
 	ek := toplaDiger(simdi)
 	s.sure += time.Since(ekBas)
 	s.okunan += ek.okunan
-	ekBulgular := append([]Bulgu{}, ek.bulgular...)
-	ekBulgular = append(ekBulgular, ortamButunlukBulgular()...)
-	for _, eb := range ekBulgular {
+	for _, eb := range ek.bulgular {
 		mevcut := false
 		for _, mb := range s.bulgular {
 			if mb.K == eb.K {
@@ -583,9 +625,11 @@ func govdeHazirla(simdi int64) ([]byte, sonuc, error) {
 	if n, ok := sonBildirim(); ok {
 		alanlar["bs"] = n // gösterilen son bildirim kimliği
 	}
-	if l, ok := limitBirlesik(simdi); ok && l.T > sonLimitT() {
-		alanlar["l"] = l // yeni limit bilgisi varsa: {"t": unix, "r": {düz harita}}
-		s.limitT = l.T
+	if sagClaudeEtkin {
+		if l, ok := limitBirlesik(simdi); ok && l.T > sonLimitT() {
+			alanlar["l"] = l // yeni limit bilgisi varsa: {"t": unix, "r": {düz harita}}
+			s.limitT = l.T
+		}
 	}
 	if len(ek.limitler) > 0 {
 		alanlar["lp"] = ek.limitler
@@ -605,7 +649,11 @@ func durumKomutu() error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Bilgisayar: %s\nAdres: %s\nCihaz: %s\nGönderici sürümü: %d\n", a.Etiket, a.URL, a.Cihaz, Surum)
+	fmt.Printf("Bilgisayar: %s\nAdres: %s\nCihaz: %s\nGönderici sürümü: %d\nPaket: %s (%s)\n",
+		a.Etiket, a.URL, a.Cihaz, Surum, paketKodu(), strings.Join(izinliSaglayicilar(), ", "))
+	if hp := paketTemizle(a.HedefPaket); hp != "" {
+		fmt.Printf("Hedef paket: %s\n", hp)
+	}
 	if n := sonBasari(); n > 0 {
 		fmt.Printf("Son başarılı gönderim: %s\n", time.Unix(n, 0).Format("2006-01-02 15:04:05"))
 	}
@@ -620,9 +668,13 @@ func durumKomutu() error {
 }
 
 func kaldirKomutu() error {
-	durumSatiriKaldir()
-	agyDurumSatiriKaldir()
-	uyariKaldir()
+	if sagClaudeEtkin {
+		durumSatiriKaldir()
+		uyariKaldir()
+	}
+	if sagGeminiEtkin {
+		geminiKancaKaldir()
+	}
 	if !testModu {
 		zamanlayiciKaldir()
 	}

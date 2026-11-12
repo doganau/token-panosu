@@ -1,3 +1,5 @@
+//go:build sag_claude || (!sag_gemini && !sag_chatgpt)
+
 package main
 
 // Limit payı uyarısı (sürüm 17+).
@@ -29,13 +31,6 @@ const (
 	uyariYedekEki      = ".token-panosu-uyari-yedek"
 	uyariOlay          = "UserPromptSubmit"
 )
-
-type asimDurumu struct {
-	Ad string    `json:"ad"`          // üye ya da bilgisayar adı
-	W  []float64 `json:"w,omitempty"` // haftalık: [kullandığı %, hakkı %]
-	F  []float64 `json:"f,omitempty"` // Fable: [kullandığı %, hakkı %]
-	T  int64     `json:"t,omitempty"` // yerelde: son güncelleme
-}
 
 func asimYolu() string     { return filepath.Join(dizin, "asim.json") }
 func uyariSonYolu() string { return filepath.Join(dizin, "uyari_son") }

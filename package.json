@@ -1,6 +1,6 @@
 {
   "name": "token-panosu",
-  "version": "1.0.0",
+  "version": "40.0.0",
   "private": true,
   "description": "Claude Code, OpenAI Codex CLI, Google Gemini CLI ve Antigravity için sıfır maliyetli, izometrik canlı ofis simülasyonlu açık kaynak ekip kota ve token panosu.",
   "license": "MIT",
@@ -10,6 +10,7 @@
   },
   "scripts": {
     "kurulum": "bash araclar/kolay-kurulum.sh",
+    "guncelle": "bash araclar/oto-guncelle.sh",
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "derle": "sh araclar/derle.sh",

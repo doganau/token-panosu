@@ -18,14 +18,72 @@ import KUR_SH from "../istemci/kur.sh";
 import KUR_PS1 from "../istemci/kur.ps1";
 import MANIFEST from "../istemci/manifest.json"; // geliştiricinin Mac'inde imzalanır; sunucu imzalayamaz
 // Uygulama ikilileri (dist/indir/*) Cloudflare statik varlık olarak sunulur: /indir/token-panosu-<sistem>-<mimari>
-const SON_SURUM = MANIFEST.ikili ? MANIFEST.ikili.surum : 0;
+const sonSurumOf = () => (MANIFEST && MANIFEST.ikili && Number.isInteger(MANIFEST.ikili.surum) ? MANIFEST.ikili.surum : 0);
+const SON_SURUM = sonSurumOf();
 const SAGLAYICILAR = ["claude", "chatgpt", "gemini"];
 const SAGLAYICI_AD = { claude: "Claude", chatgpt: "ChatGPT", gemini: "Gemini" };
 const saglayiciSec = (s) => (SAGLAYICILAR.includes(s) ? s : "claude");
 const VARSAYILAN_ORIGIN = "https://pano.ornek.com";
 const RESMI_AJAN_RE = /^token-panosu\/\d+ \((darwin|windows|linux)\)$/;
-const MUHUR_ILK_SURUM = 31;
+const MUHUR_KONTROL_SURUM = 31;
+const MUHUR_ILK_SURUM = 40;
 const HEDEF_OS_HARITA = { darwin: "Darwin", windows: "Windows", linux: "Linux" };
+const HEDEF_TAM_RE = /^(darwin|windows|linux)-(amd64|arm64)(?:-(c|g|m|cg|cm|gm))?$/;
+const PAKET_HARFLER = ["c", "g", "m"];
+const HARF_SAGLAYICI = { c: "claude", g: "chatgpt", m: "gemini" };
+const SAGLAYICI_HARF = { claude: "c", chatgpt: "g", gemini: "m" };
+const GECERLI_PAKETLER = new Set(["c", "g", "m", "cg", "cm", "gm", "cgm"]);
+
+export function paketNormalize(girdi) {
+  if (girdi === null || girdi === undefined) return "";
+  let parcalar;
+  if (Array.isArray(girdi)) {
+    if (!girdi.length) return "";
+    parcalar = girdi.map((x) => (typeof x === "string" ? x.trim().toLowerCase() : null));
+    if (parcalar.some((x) => !x)) return "";
+  } else if (typeof girdi === "string") {
+    const s = girdi.trim().toLowerCase();
+    if (!s) return "";
+    if (/^[cgm]{1,3}$/.test(s)) {
+      const set = new Set(s.split(""));
+      return PAKET_HARFLER.filter((h) => set.has(h)).join("");
+    }
+    parcalar = s.split(/[\s,+]+/).filter(Boolean);
+    if (!parcalar.length) return "";
+  } else {
+    return "";
+  }
+  const harfSet = new Set();
+  for (const p of parcalar) {
+    if (Object.hasOwn(SAGLAYICI_HARF, p)) harfSet.add(SAGLAYICI_HARF[p]);
+    else if (/^[cgm]{1,3}$/.test(p)) {
+      for (const ch of p) harfSet.add(ch);
+    } else {
+      return "";
+    }
+  }
+  const sonuc = PAKET_HARFLER.filter((h) => harfSet.has(h)).join("");
+  return GECERLI_PAKETLER.has(sonuc) ? sonuc : "";
+}
+
+export function pakettenSaglayicilar(paket) {
+  if (paket === "" || paket === null || paket === undefined) return [...SAGLAYICILAR];
+  const norm = paketNormalize(paket);
+  if (!norm) return [];
+  return [...norm].map((h) => HARF_SAGLAYICI[h]);
+}
+
+export function cihazEtkinPaket(cihazIzinli) {
+  return paketNormalize(cihazIzinli) || "cgm";
+}
+
+export function hedeftenPaketCikar(xTarget) {
+  const t = String(xTarget || "").trim().toLowerCase();
+  const m = t.match(/^(?:darwin|windows|linux)-(?:amd64|arm64)(?:-(c|g|m|cg|cm|gm))?$/);
+  if (!m) return "";
+  return m[1] || "cgm";
+}
+
 const EPOSTA_RE = /^[^\s@<>"'\\]{1,64}@[^\s@<>"'\\]{1,120}\.[^\s@<>"'\\]{2,}$/;
 const epostaTemizle = (v) => {
   if (typeof v !== "string") return "";
@@ -34,11 +92,24 @@ const epostaTemizle = (v) => {
 };
 
 // İlk istekte eksik tablo/görünüm varsa idempotent olarak oluşturur (sıfır adımlı D1 kurulumu).
+let sonEnvDb = null;
 let semaSoz = null;
 function semaHazirla(env) {
+  if (env && env.DB && env.DB !== sonEnvDb) {
+    sonEnvDb = env.DB;
+    semaSoz = null;
+    ayarBellek = null;
+    ayarYuklendiAt = 0;
+    fiyatYuklendi = 0;
+    fiyatGuncellendi = 0;
+    FIYAT_TABAN = YERLESIK;
+    FIYAT = YERLESIK;
+    kullaniciOnbellek.clear();
+    okumaOnbellekTemizle(true);
+  }
   if (semaSoz) return semaSoz;
   const ifadeler = [
-    `CREATE TABLE IF NOT EXISTS devices (id TEXT PRIMARY KEY, label TEXT NOT NULL, secret TEXT NOT NULL, created_at INTEGER NOT NULL, last_ts INTEGER NOT NULL DEFAULT 0, last_seen INTEGER NOT NULL DEFAULT 0, client_ver INTEGER NOT NULL DEFAULT 0, flags TEXT NOT NULL DEFAULT '[]', srv_flags TEXT NOT NULL DEFAULT '[]', os TEXT NOT NULL DEFAULT '', limit_sorgu INTEGER NOT NULL DEFAULT 0, uye_id TEXT NOT NULL DEFAULT '', bildirim_son INTEGER NOT NULL DEFAULT 0, hesaplar TEXT NOT NULL DEFAULT '{}', hesap_eposta TEXT NOT NULL DEFAULT '{}')`,
+    `CREATE TABLE IF NOT EXISTS devices (id TEXT PRIMARY KEY, label TEXT NOT NULL, secret TEXT NOT NULL, created_at INTEGER NOT NULL, last_ts INTEGER NOT NULL DEFAULT 0, last_seen INTEGER NOT NULL DEFAULT 0, client_ver INTEGER NOT NULL DEFAULT 0, flags TEXT NOT NULL DEFAULT '[]', srv_flags TEXT NOT NULL DEFAULT '[]', os TEXT NOT NULL DEFAULT '', limit_sorgu INTEGER NOT NULL DEFAULT 0, uye_id TEXT NOT NULL DEFAULT '', bildirim_son INTEGER NOT NULL DEFAULT 0, hesaplar TEXT NOT NULL DEFAULT '{}', hesap_eposta TEXT NOT NULL DEFAULT '{}', izinli_saglayici TEXT NOT NULL DEFAULT '', calisan_paket TEXT NOT NULL DEFAULT '')`,
     `CREATE TABLE IF NOT EXISTS haric (device_id TEXT NOT NULL, sid TEXT NOT NULL, added_at INTEGER NOT NULL, note TEXT NOT NULL DEFAULT '', PRIMARY KEY (device_id, sid))`,
     `CREATE TABLE IF NOT EXISTS limit_log (week INTEGER PRIMARY KEY, pct REAL NOT NULL, set_at INTEGER NOT NULL)`,
     `CREATE TABLE IF NOT EXISTS limit_okuma (id INTEGER PRIMARY KEY CHECK (id = 1), okundu_at INTEGER NOT NULL, device_id TEXT NOT NULL, ham TEXT NOT NULL)`,
@@ -46,7 +117,7 @@ function semaHazirla(env) {
     `CREATE TABLE IF NOT EXISTS limit_gecmis (device_id TEXT NOT NULL, t INTEGER NOT NULL, w_pct REAL, w_reset INTEGER, h_pct REAL, h_reset INTEGER, ham TEXT, PRIMARY KEY (device_id, t))`,
     `CREATE INDEX IF NOT EXISTS limit_gecmis_t ON limit_gecmis(t)`,
     `CREATE TABLE IF NOT EXISTS login_fail (ip TEXT PRIMARY KEY, count INTEGER NOT NULL, window_start INTEGER NOT NULL)`,
-    `CREATE TABLE IF NOT EXISTS pair_codes (code TEXT PRIMARY KEY, label TEXT NOT NULL, expires_at INTEGER NOT NULL, uye_id TEXT NOT NULL DEFAULT '')`,
+    `CREATE TABLE IF NOT EXISTS pair_codes (code TEXT PRIMARY KEY, label TEXT NOT NULL, expires_at INTEGER NOT NULL, uye_id TEXT NOT NULL DEFAULT '', izinli_saglayici TEXT NOT NULL DEFAULT '', used_at INTEGER NOT NULL DEFAULT 0)`,
     `CREATE TABLE IF NOT EXISTS usage_5m (device_id TEXT NOT NULL, bucket INTEGER NOT NULL, model TEXT NOT NULL, sid TEXT NOT NULL DEFAULT '', input INTEGER NOT NULL DEFAULT 0, output INTEGER NOT NULL DEFAULT 0, cw5m INTEGER NOT NULL DEFAULT 0, cw1h INTEGER NOT NULL DEFAULT 0, cr INTEGER NOT NULL DEFAULT 0, messages INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (device_id, bucket, model, sid))`,
     `CREATE TABLE IF NOT EXISTS usage_h (device_id TEXT NOT NULL, hour INTEGER NOT NULL, model TEXT NOT NULL, sid TEXT NOT NULL DEFAULT '', input INTEGER NOT NULL DEFAULT 0, output INTEGER NOT NULL DEFAULT 0, cw5m INTEGER NOT NULL DEFAULT 0, cw1h INTEGER NOT NULL DEFAULT 0, cr INTEGER NOT NULL DEFAULT 0, messages INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (device_id, hour, model, sid))`,
     `CREATE INDEX IF NOT EXISTS usage_5m_bucket ON usage_5m(bucket)`,
@@ -69,6 +140,10 @@ function semaHazirla(env) {
   semaSoz = env.DB.batch(ifadeler.map((s) => env.DB.prepare(s)))
     .then(() => Promise.all([
       env.DB.prepare("ALTER TABLE devices ADD COLUMN hesap_eposta TEXT NOT NULL DEFAULT '{}'").run().catch(() => {}),
+      env.DB.prepare("ALTER TABLE devices ADD COLUMN izinli_saglayici TEXT NOT NULL DEFAULT ''").run().catch(() => {}),
+      env.DB.prepare("ALTER TABLE devices ADD COLUMN calisan_paket TEXT NOT NULL DEFAULT ''").run().catch(() => {}),
+      env.DB.prepare("ALTER TABLE pair_codes ADD COLUMN izinli_saglayici TEXT NOT NULL DEFAULT ''").run().catch(() => {}),
+      env.DB.prepare("ALTER TABLE pair_codes ADD COLUMN used_at INTEGER NOT NULL DEFAULT 0").run().catch(() => {}),
       env.DB.prepare("ALTER TABLE hesap_kilit ADD COLUMN eposta TEXT NOT NULL DEFAULT ''").run().catch(() => {}),
     ]))
     .catch((e) => {
@@ -257,7 +332,20 @@ function ayarTemizle(ham, taban = VARSAYILAN_AYAR) {
   const esikHam = ofGelen.asimEsik !== undefined ? Number(ofGelen.asimEsik) : ofTaban.asimEsik;
   const asimEsik = Number.isFinite(esikHam) && esikHam >= 0 && esikHam <= 50 ? Math.round(esikHam * 10) / 10 : ofTaban.asimEsik;
 
-  return {
+  let githubSurumKontrol = t.github_surum_kontrol && typeof t.github_surum_kontrol === "object" ? t.github_surum_kontrol : null;
+  if (h.github_surum_kontrol === null) githubSurumKontrol = null;
+  else if (h.github_surum_kontrol && typeof h.github_surum_kontrol === "object" && !Array.isArray(h.github_surum_kontrol)) {
+    const gk = h.github_surum_kontrol;
+    if (Number.isFinite(gk.t) && Number.isFinite(gk.son_surum) && typeof gk.indir_url === "string") {
+      githubSurumKontrol = {
+        t: Math.floor(gk.t),
+        son_surum: Math.floor(gk.son_surum),
+        indir_url: gk.indir_url.slice(0, 240),
+      };
+    }
+  }
+
+  const cikti = {
     panoBaslik: h.panoBaslik !== undefined ? temizMetin(h.panoBaslik, 48, "Token Panosu") : t.panoBaslik,
     zamanDilimi: h.zamanDilimi !== undefined && zamanDilimiGecerliMi(h.zamanDilimi) ? h.zamanDilimi : t.zamanDilimi,
     haftaMod: h.haftaMod === "elle" || h.haftaMod === "otomatik" ? h.haftaMod : (t.haftaMod === "elle" ? "elle" : "otomatik"),
@@ -290,6 +378,8 @@ function ayarTemizle(ham, taban = VARSAYILAN_AYAR) {
       return [s, gelen === undefined ? { ...taban } : saglayiciYamaUygula(taban, gelen)];
     })),
   };
+  if (githubSurumKontrol) cikti.github_surum_kontrol = githubSurumKontrol;
+  return cikti;
 }
 
 let ayarBellek = null;
@@ -354,7 +444,7 @@ function fiyatBirlestirUygula() {
   const ozel = ayarBellek && ayarBellek.ozelFiyatlar ? ayarBellek.ozelFiyatlar : {};
   const ek = {};
   for (const [m, b] of Object.entries(ozel)) {
-    if (Array.isArray(b) && b.length === 5) ek[m] = { b };
+    if (Array.isArray(b) && b.length === 5) ek[m] = { b, ozel: true };
   }
   FIYAT = { ...FIYAT_TABAN, ...ek };
 }
@@ -394,8 +484,12 @@ async function fiyatYenile(env) {
   okumaOnbellekTemizle(false);
   return { tamam: true, kaynak, model: Object.keys(liste).length, not };
 }
-const costOf = (r) => {
-  const [i, o, w5, w1, cr] = fiyatBul(FIYAT, r.model);
+const costOf = (r, zamanMs) => {
+  if (typeof r.usd === "number" && Number.isFinite(r.usd) && zamanMs === undefined) return r.usd;
+  const z = zamanMs !== undefined
+    ? zamanMs
+    : (Number.isFinite(r.hour) ? r.hour * 1000 : (Number.isFinite(r.bucket) ? r.bucket * 1000 : undefined));
+  const [i, o, w5, w1, cr] = fiyatBul(FIYAT, r.model, z);
   return (r.input * i + r.output * o + r.cw5m * w5 + r.cw1h * w1 + r.cr * cr) / 1e6;
 };
 // ---------- limit payı aşımı (sürüm 17+ istemciye uyarı) ----------
@@ -721,7 +815,7 @@ async function kullaniciGetir(env, id, zorla = false) {
   return v;
 }
 let uyeOfisBellek = { t: 0, map: null };
-const ESKI_CLAUDE_BAYRAKLARI = new Set(["config_dir", "ek_klasor", "api_ortam", "temizlik", "baska_kullanici", "gelecek", "editli", "buyuk"]);
+const ESKI_CLAUDE_BAYRAKLARI = new Set(["config_dir", "ek_klasor", "api_ortam", "temizlik", "baska_kullanici", "gelecek", "editli", "buyuk", "azalan"]);
 function bayrakSaglayici(kod) {
   const k = String(kod || "");
   for (const sgl of SAGLAYICILAR) {
@@ -838,6 +932,17 @@ async function denemeYaz(env, anahtar, f, now) {
   if (!f || now - f.window_start >= 900) await env.DB.prepare("INSERT OR REPLACE INTO login_fail (ip, count, window_start) VALUES (?,1,?)").bind(anahtar, now).run();
   else await env.DB.prepare("UPDATE login_fail SET count = count + 1 WHERE ip = ?").bind(anahtar).run();
 }
+async function oranDenetle(env, anahtar, limit = 30, pencereSn = 60) {
+  const now = Math.floor(Date.now() / 1000);
+  const f = await env.DB.prepare("SELECT count, window_start FROM login_fail WHERE ip = ?").bind(anahtar).first();
+  if (f && now - f.window_start < pencereSn && f.count >= limit) return false;
+  if (!f || now - f.window_start >= pencereSn) {
+    await env.DB.prepare("INSERT OR REPLACE INTO login_fail (ip, count, window_start) VALUES (?,1,?)").bind(anahtar, now).run();
+  } else {
+    await env.DB.prepare("UPDATE login_fail SET count = count + 1 WHERE ip = ?").bind(anahtar).run();
+  }
+  return true;
+}
 
 async function handleLogin(req, env) {
   const ip = req.headers.get("cf-connecting-ip") || "yok";
@@ -950,6 +1055,75 @@ async function handleSifreBelirle(req, env) {
   return json({ tamam: true }, 200, { "set-cookie": cookie(await oturumOlustur(env, k), SESSION_DAYS * 86400) });
 }
 
+// ---------- cihaz sağlayıcı izni ortak yardımcıları ----------
+async function varsayilanUyePaketi(env, uyeId, ofisler) {
+  if (uyeId) {
+    const { results } = await env.DB.prepare("SELECT izinli_saglayici FROM devices WHERE uye_id = ?").bind(uyeId).all();
+    if (results && results.length > 0) {
+      const birlesim = new Set();
+      let acikIzinVar = false;
+      for (const d of results) {
+        const p = paketNormalize(d.izinli_saglayici);
+        if (p) {
+          acikIzinVar = true;
+          for (const sgl of pakettenSaglayicilar(p)) birlesim.add(sgl);
+        }
+      }
+      if (acikIzinVar && birlesim.size > 0) return paketNormalize([...birlesim]) || "cgm";
+    }
+  }
+  if (Array.isArray(ofisler) && ofisler.length > 0) {
+    const p = paketNormalize(ofisler.map((o) => o && o.saglayici).filter(Boolean));
+    if (p) return p;
+  }
+  return "cgm";
+}
+
+async function cihazIzinUygula(env, devId, hamIzin) {
+  const id = String(devId || "").trim();
+  if (!/^[a-f0-9]{32}$/.test(id)) return json({ hata: "Geçerli bir bilgisayar seçin." }, 400);
+  const yeniPaket = paketNormalize(hamIzin);
+  if (!yeniPaket) return json({ hata: "En az bir veri sağlayıcısı seçin." }, 400);
+  const dv = await env.DB.prepare("SELECT id, flags, srv_flags, hesaplar, hesap_eposta FROM devices WHERE id = ?").bind(id).first();
+  if (!dv) return json({ hata: "Bilgisayar bulunamadı." }, 404);
+  const yeniSet = new Set(pakettenSaglayicilar(yeniPaket));
+  const bayrakSuz = (ham) => {
+    let arr = [];
+    try { arr = JSON.parse(ham || "[]"); } catch {}
+    if (!Array.isArray(arr)) return [];
+    return arr.filter((f) => {
+      if (!f || typeof f.k !== "string") return false;
+      const p = bayrakSaglayici(f.k);
+      return !p || yeniSet.has(p);
+    });
+  };
+  const temizFlags = bayrakSuz(dv.flags);
+  const temizSrvFlags = bayrakSuz(dv.srv_flags);
+  const temizHesaplar = {};
+  try {
+    const hObj = JSON.parse(dv.hesaplar || "{}");
+    if (hObj && typeof hObj === "object" && !Array.isArray(hObj)) {
+      for (const sgl of SAGLAYICILAR) {
+        if (yeniSet.has(sgl) && typeof hObj[sgl] === "string" && SID_RE.test(hObj[sgl])) temizHesaplar[sgl] = hObj[sgl];
+      }
+    }
+  } catch {}
+  const temizEpostalar = {};
+  try {
+    const epObj = JSON.parse(dv.hesap_eposta || "{}");
+    if (epObj && typeof epObj === "object" && !Array.isArray(epObj)) {
+      for (const sgl of SAGLAYICILAR) {
+        const ep = epostaTemizle(epObj[sgl]);
+        if (yeniSet.has(sgl) && ep) temizEpostalar[sgl] = ep;
+      }
+    }
+  } catch {}
+  await env.DB.prepare("UPDATE devices SET izinli_saglayici = ?, flags = ?, srv_flags = ?, hesaplar = ?, hesap_eposta = ? WHERE id = ?")
+    .bind(yeniPaket, JSON.stringify(temizFlags), JSON.stringify(temizSrvFlags), JSON.stringify(temizHesaplar), JSON.stringify(temizEpostalar), id).run();
+  okumaOnbellekTemizle(false);
+  return json({ ok: true, tamam: true, device_id: id, izinli_saglayici: yeniPaket, paket: yeniPaket });
+}
+
 // ---------- kendi hesabım ----------
 async function handleHesap(req, env, path, url, erisim) {
   const u = erisim.kullanici;
@@ -958,14 +1132,16 @@ async function handleHesap(req, env, path, url, erisim) {
   const kendiCihaz = async (id) => u.uye_id && (await env.DB.prepare("SELECT id FROM devices WHERE id = ? AND uye_id = ?").bind(String(id || ""), u.uye_id).first());
   if (path === "/api/hesap" && req.method === "GET") {
     const hamCihazlar = u.uye_id
-      ? (await env.DB.prepare("SELECT id, label, created_at, last_seen, client_ver, os, srv_flags FROM devices WHERE uye_id = ? ORDER BY created_at").bind(u.uye_id).all()).results
+      ? (await env.DB.prepare("SELECT id, label, created_at, last_seen, client_ver, os, srv_flags, izinli_saglayici, calisan_paket FROM devices WHERE uye_id = ? ORDER BY created_at").bind(u.uye_id).all()).results
       : [];
-    const cihazlar = hamCihazlar.map(({ srv_flags, ...c }) => ({
+    const cihazlar = hamCihazlar.map(({ srv_flags, izinli_saglayici, calisan_paket, ...c }) => ({
       ...c,
+      izinli_saglayici: cihazEtkinPaket(izinli_saglayici),
+      calisan_paket: calisan_paket || "",
       ozel_istemci: typeof srv_flags === "string" && srv_flags.includes('"ozel_istemci"'),
     }));
     const uye = u.uye_id ? await env.DB.prepare("SELECT id, ad FROM uyeler WHERE id = ?").bind(u.uye_id).first() : null;
-    return json({ kullanici: { id: u.id, kullanici_adi: u.kullanici_adi, ad: u.ad, rol: u.rol, son_giris: u.son_giris, olusturuldu: u.olusturuldu }, ofisler: u.ofisler, uye, cihazlar, latest: SON_SURUM, now });
+    return json({ kullanici: { id: u.id, kullanici_adi: u.kullanici_adi, ad: u.ad, rol: u.rol, son_giris: u.son_giris, olusturuldu: u.olusturuldu }, ofisler: u.ofisler, uye, cihazlar, latest: sonSurumOf(), now });
   }
   if (path === "/api/hesap/profil" && req.method === "POST") {
     const b = await req.json();
@@ -995,6 +1171,11 @@ async function handleHesap(req, env, path, url, erisim) {
     const b = await req.json();
     const l = String(b.label || "").trim().slice(0, 40);
     if (!l) return json({ hata: "Bilgisayara bir ad ver." }, 400);
+    let paket;
+    if (b.izinli_saglayici !== undefined) {
+      paket = paketNormalize(b.izinli_saglayici);
+      if (!paket) return json({ hata: "En az bir veri sağlayıcısı seçin." }, 400);
+    }
     let uyeId = u.uye_id;
     if (!uyeId || !(await env.DB.prepare("SELECT 1 FROM uyeler WHERE id = ?").bind(uyeId).first())) {
       // Hesabın bir masası (üye kaydı) yoksa kendi adıyla oluşturulur
@@ -1007,14 +1188,21 @@ async function handleHesap(req, env, path, url, erisim) {
       ]);
       kullaniciUnut(u.id);
     }
+    if (!paket) paket = await varsayilanUyePaketi(env, uyeId, u.ofisler);
     const alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
     const s = [...crypto.getRandomValues(new Uint8Array(10))].map((x) => alphabet[x % alphabet.length]).join("");
     const code = `${s.slice(0, 5)}-${s.slice(5)}`;
     await env.DB.batch([
       env.DB.prepare("DELETE FROM pair_codes WHERE expires_at < ?").bind(now),
-      env.DB.prepare("INSERT INTO pair_codes (code, label, expires_at, uye_id) VALUES (?,?,?,?)").bind(code, l, now + 900, uyeId),
+      env.DB.prepare("INSERT INTO pair_codes (code, label, expires_at, uye_id, izinli_saglayici, used_at) VALUES (?,?,?,?,?,0)").bind(code, l, now + 900, uyeId, paket),
     ]);
-    return json({ code, label: l, expires_at: now + 900 });
+    return json({ code, label: l, expires_at: now + 900, izinli_saglayici: paket, paket });
+  }
+  if (path === "/api/hesap/cihaz-izin" && req.method === "POST") {
+    const b = await req.json();
+    const devId = String(b.device_id || b.id || "").trim();
+    if (!erisim.admin && !(await kendiCihaz(devId))) return json({ hata: "Bu bilgisayar senin hesabına bağlı değil." }, 403);
+    return cihazIzinUygula(env, devId, b.izinli_saglayici);
   }
   if (path === "/api/hesap/cihaz-adlandir" && req.method === "POST") {
     const b = await req.json();
@@ -1199,6 +1387,9 @@ function saglayiciLimitLogYenile(env, sgl, hs) {
   ).bind(sgl, hs, WEEK);
 }
 
+function fableKesilmisSatir() { return false; }
+function fableKesimUygula(rows, dilim) { return { rows, dilim }; }
+
 function beklenenIkiliSha256(surum, hedef) {
   if (!MANIFEST || !hedef) return "";
   if (MANIFEST.ikili && MANIFEST.ikili.surum === surum && MANIFEST.ikili.dosyalar && MANIFEST.ikili.dosyalar[hedef]) {
@@ -1208,20 +1399,27 @@ function beklenenIkiliSha256(surum, hedef) {
   return g && typeof g[hedef] === "string" ? g[hedef].toLowerCase() : "";
 }
 
-async function dogrulaMuhur(req, env, device, rowSecret, ts, rawSha, clientVer, osAdi) {
+async function dogrulaMuhur(req, env, device, rowSecret, ts, rawSha, clientVer, osAdi, muhurZorunlu = false) {
   const muhurAna = typeof env.MUHUR_ANAHTAR === "string" ? env.MUHUR_ANAHTAR.trim().toLowerCase() : "";
-  if (!/^[0-9a-f]{64}$/.test(muhurAna) || !SON_SURUM || SON_SURUM < MUHUR_ILK_SURUM) {
-    return { aktif: false, gecerli: true };
+  const sSurum = sonSurumOf();
+  if (!/^[0-9a-f]{64}$/.test(muhurAna) || !sSurum || sSurum < MUHUR_KONTROL_SURUM) {
+    return { aktif: false, gecerli: true, muhurlu: false, muaf: false, paket: "" };
+  }
+  // Mühür zorunluluğu henüz devreye girmemişken mühür öncesi (<31) eski betikleri geçici olarak muaf tut:
+  if (clientVer < MUHUR_KONTROL_SURUM && !muhurZorunlu) {
+    return { aktif: true, gecerli: true, muhurlu: false, muaf: true, paket: "" };
   }
   const xTarget = (req.headers.get("x-target") || "").trim().toLowerCase();
   const xExe = (req.headers.get("x-exe-hash") || "").trim().toLowerCase();
   const xSeal = (req.headers.get("x-seal") || "").trim().toLowerCase();
   const ua = (req.headers.get("user-agent") || "").trim();
   const ae = (req.headers.get("accept-encoding") || "").toLowerCase();
-  if (!/^(darwin|windows|linux)-(amd64|arm64)$/.test(xTarget) || !/^[0-9a-f]{64}$/.test(xExe) || !/^[0-9a-f]{64}$/.test(xSeal)) {
+  if (!HEDEF_TAM_RE.test(xTarget) || !/^[0-9a-f]{64}$/.test(xExe) || !/^[0-9a-f]{64}$/.test(xSeal)) {
     return {
       aktif: true,
       gecerli: false,
+      muhurlu: false,
+      paket: "",
       kod: "eksik_muhur",
       metin: `Resmî gönderici mührü eksik (sürüm v${clientVer}, istemci: ${(ua || "bilinmiyor").slice(0, 40)}): veri alınmadı`,
     };
@@ -1231,6 +1429,8 @@ async function dogrulaMuhur(req, env, device, rowSecret, ts, rawSha, clientVer, 
     return {
       aktif: true,
       gecerli: false,
+      muhurlu: false,
+      paket: "",
       kod: "sahte_baslik",
       metin: `Gönderici ağ/sistem parmak izi resmî ikiliyle uyuşmuyor (${ua.slice(0, 40)}): veri alınmadı`,
     };
@@ -1240,6 +1440,8 @@ async function dogrulaMuhur(req, env, device, rowSecret, ts, rawSha, clientVer, 
     return {
       aktif: true,
       gecerli: false,
+      muhurlu: false,
+      paket: "",
       kod: "degismis_ikili",
       metin: `Gönderici programında değişiklik algılandı (v${clientVer} ${xTarget} özeti resmî imzalı sürümle uyuşmuyor): veri alınmadı`,
     };
@@ -1253,11 +1455,13 @@ async function dogrulaMuhur(req, env, device, rowSecret, ts, rawSha, clientVer, 
     return {
       aktif: true,
       gecerli: false,
+      muhurlu: false,
+      paket: "",
       kod: "gecersiz_muhur",
       metin: `Gönderici kriptografik mührü doğrulanamadı (özel derleme veya değiştirilmiş kod): veri alınmadı`,
     };
   }
-  return { aktif: true, gecerli: true };
+  return { aktif: true, gecerli: true, muhurlu: true, muaf: false, paket: hedeftenPaketCikar(xTarget) };
 }
 
 async function handleIngest(req, env, ctx) {
@@ -1274,7 +1478,7 @@ async function handleIngest(req, env, ctx) {
   const raw = new Uint8Array(await req.arrayBuffer());
   if (raw.length > 1024 * 1024) return json({ hata: "gövde çok büyük" }, 413);
 
-  const row = await env.DB.prepare("SELECT secret, label, client_ver, srv_flags FROM devices WHERE id = ?").bind(device).first();
+  const row = await env.DB.prepare("SELECT secret, label, client_ver, srv_flags, izinli_saglayici, calisan_paket FROM devices WHERE id = ?").bind(device).first();
   if (!row) return json({ hata: "imza geçersiz" }, 401);
   const rawSha = await sha256Hex(raw);
   const msg = `v1\n${device}\n${ts}\n${rawSha}`;
@@ -1294,18 +1498,24 @@ async function handleIngest(req, env, ctx) {
 
   const sistemAyarIlk = await ayarYukle(env);
   const mevcutCihazSurum = Number(row.client_ver) || 0;
+  const etkinPaket = cihazEtkinPaket(row.izinli_saglayici);
+  const izinliSet = new Set(pakettenSaglayicilar(etkinPaket));
 
-  // Mühürlü sürüme (>=31) geçmiş bir bilgisayarda arka planda unutulmuş eski bir betik çalışırsa,
+  // Mühürlü sürüme (>=31 veya >=40) geçmiş bir bilgisayarda arka planda unutulmuş eski bir betik çalışırsa,
   // mühür zorunluluğu henüz kilitlenmemişken cihazın sürümünü ve verisini ezmesini engelle:
-  if (!sistemAyarIlk.muhurZorunlu && mevcutCihazSurum >= MUHUR_ILK_SURUM && clientVer < MUHUR_ILK_SURUM) {
+  if (
+    !sistemAyarIlk.muhurZorunlu &&
+    ((mevcutCihazSurum >= MUHUR_ILK_SURUM && clientVer < MUHUR_ILK_SURUM) ||
+      (mevcutCihazSurum >= MUHUR_KONTROL_SURUM && clientVer < MUHUR_KONTROL_SURUM))
+  ) {
     return json({ hata: "bu bilgisayar yeni sürüme geçti; eski betik devre dışı" }, 409);
   }
 
-  const muhur = await dogrulaMuhur(req, env, device, row.secret, ts, rawSha, clientVer, osAdi);
-  const ortamMudahale = Array.isArray(body.c) && body.c.find((f) => f && (f.k === "ortam_mudahale" || f.k === "sahte_ev") && typeof f.t === "string");
   const minZorunlu = sistemAyarIlk.muhurZorunlu
-    ? Math.max(MUHUR_ILK_SURUM, sistemAyarIlk.zorunluMinSurum || MUHUR_ILK_SURUM)
+    ? Math.max(MUHUR_KONTROL_SURUM, sistemAyarIlk.zorunluMinSurum || MUHUR_KONTROL_SURUM)
     : 0;
+  const muhur = await dogrulaMuhur(req, env, device, row.secret, ts, rawSha, clientVer, osAdi, !!sistemAyarIlk.muhurZorunlu);
+  const ortamMudahale = Array.isArray(body.c) && body.c.find((f) => f && (f.k === "ortam_mudahale" || f.k === "sahte_ev") && typeof f.t === "string");
 
   const reddetVeIsaretle = async (kod, metin) => {
     const updRed = await env.DB.prepare("UPDATE devices SET last_ts = ?, last_seen = ? WHERE id = ? AND last_ts < ?")
@@ -1324,14 +1534,14 @@ async function handleIngest(req, env, ctx) {
   };
 
   // 1) Mühürlü sürüm (>=31) iddiasıyla gelip mührü/ikili özeti tutmayan istekler her zaman anında reddedilir ve işaretlenir
-  if (muhur.aktif && clientVer >= MUHUR_ILK_SURUM && !muhur.gecerli) {
+  if (muhur.aktif && clientVer >= MUHUR_KONTROL_SURUM && !muhur.gecerli) {
     return reddetVeIsaretle("mudahale_istemci", muhur.metin);
   }
   // 2) Çalışma ortamı kurcalanmışsa (sahte HOME, DYLD/LD_PRELOAD, TOKEN_PANOSU_DIZIN) veri alınmaz ve işaretlenir
   if (ortamMudahale && (muhur.aktif || sistemAyarIlk.muhurZorunlu)) {
     return reddetVeIsaretle("mudahale_istemci", `${ortamMudahale.t.slice(0, 140)} — veri alınmadı`);
   }
-  // 3) Tüm cihazlar mühürlü sürüme ulaştıktan sonra (muhurZorunlu === true): eski sürümler ve mühürsüz betikler reddedilir ve işaretlenir
+  // 3) Tüm cihazlar hedef sürüme ulaştıktan sonra (muhurZorunlu === true): eski sürümler ve mühürsüz betikler reddedilir ve işaretlenir
   if (sistemAyarIlk.muhurZorunlu) {
     if (clientVer < minZorunlu) {
       return reddetVeIsaretle(
@@ -1339,8 +1549,8 @@ async function handleIngest(req, env, ctx) {
         `Eski veya yetkisiz gönderici sürümü (v${clientVer} < zorunlu v${minZorunlu}): veri alınmadı`
       );
     }
-    if (muhur.aktif && !muhur.gecerli) {
-      return reddetVeIsaretle("mudahale_istemci", muhur.metin);
+    if (muhur.aktif && (!muhur.gecerli || !muhur.muhurlu)) {
+      return reddetVeIsaretle("mudahale_istemci", muhur.metin || `Resmî gönderici mührü zorunlu (v${clientVer}): veri alınmadı`);
     }
   }
 
@@ -1350,7 +1560,7 @@ async function handleIngest(req, env, ctx) {
   const minH = now - 40 * 86400;
   const maxH = now + 3600;
 
-  // Tüm satırlar yazılmadan önce doğrulanır
+  // Tüm satırlar yazılmadan önce doğrulanır; izinli olmayan sağlayıcıların satırları düşürülür
   const sidOk = (x) => (x === undefined || x === "" ? "" : SID_RE.test(x) ? x : null);
   const rowsV = [];
   for (const r of body.rows) {
@@ -1359,6 +1569,7 @@ async function handleIngest(req, env, ctx) {
     if (sid === null || !Number.isSafeInteger(r.h) || r.h % 3600 !== 0 || r.h < minH || r.h > maxH || !MODEL_RE.test(r.model) || !vals.every(isCount)) {
       return json({ hata: "geçersiz satır" }, 400);
     }
+    if (!izinliSet.has(saglayiciOf(r.model))) continue;
     rowsV.push({ h: r.h, model: r.model, sid, vals });
   }
   const dilimV = [];
@@ -1368,15 +1579,16 @@ async function handleIngest(req, env, ctx) {
     if (sid === null || !Number.isSafeInteger(r.t) || r.t % 300 !== 0 || r.t < now - 4 * 3600 || r.t > now + 300 || !MODEL_RE.test(r.model) || !vals.every(isCount)) {
       return json({ hata: "geçersiz dilim" }, 400);
     }
+    if (!izinliSet.has(saglayiciOf(r.model))) continue;
     dilimV.push({ t: r.t, model: r.model, sid, vals });
   }
 
   // Ortak hesap kilidi: yerel dosyalardan gelen e-posta adreslerini ve SHA-256 hesap özetlerini kontrol eder.
-  // İlk geçerli hesap o sağlayıcı için ortak hesap olarak kilitlenir; listeden başka bir e-posta da seçilip kilitlenebilir.
-  // Dosyası olmayan / henüz güncellememiş (eski sürüm) cihazlar özet eşleşmesiyle sorunsuz kabul edilir.
+  // İzinli olmayan sağlayıcıların hesap/e-posta/sıfırlama verileri yok sayılır ve kilit uyumsuzluğu üretmez.
   const gelenHesap = {};
   if (body.hesap && typeof body.hesap === "object" && !Array.isArray(body.hesap)) {
     for (const sgl of SAGLAYICILAR) {
+      if (!izinliSet.has(sgl)) continue;
       if (typeof body.hesap[sgl] === "string" && SID_RE.test(body.hesap[sgl])) {
         gelenHesap[sgl] = body.hesap[sgl];
       }
@@ -1385,6 +1597,7 @@ async function handleIngest(req, env, ctx) {
   const gelenEposta = {};
   if (body.eposta && typeof body.eposta === "object" && !Array.isArray(body.eposta)) {
     for (const sgl of SAGLAYICILAR) {
+      if (!izinliSet.has(sgl)) continue;
       const ep = epostaTemizle(body.eposta[sgl]);
       if (ep) gelenEposta[sgl] = ep;
     }
@@ -1392,6 +1605,7 @@ async function handleIngest(req, env, ctx) {
   const gelenHaftaReset = {};
   if (body.hr && typeof body.hr === "object" && !Array.isArray(body.hr)) {
     for (const sgl of SAGLAYICILAR) {
+      if (!izinliSet.has(sgl)) continue;
       // Sürüm 27 öncesi göndericiler Claude ara havuz düşüşünü (%91 -> %44) haftalık sıfırlama sanabildiği için yok sayılır.
       if (sgl === "claude" && clientVer < 27) continue;
       // Sürüm 29 öncesi göndericiler Antigravity 3P (Claude) havuzunun sıfırlamasını Gemini haftalık sıfırlaması sanabildiği için yok sayılır.
@@ -1426,6 +1640,7 @@ async function handleIngest(req, env, ctx) {
   const engelliSaglayici = new Set();
   const yeniKilitStmts = [];
   for (const sgl of SAGLAYICILAR) {
+    if (!izinliSet.has(sgl)) continue;
     if (sistemAyar.hesapKilitAktif && sistemAyar.hesapKilitAktif[sgl] === false) continue;
     const h = gelenHesap[sgl] || "";
     const ep = gelenEposta[sgl] || "";
@@ -1453,27 +1668,34 @@ async function handleIngest(req, env, ctx) {
     }
   }
 
-  const kabulRowsV = engelliSaglayici.size ? rowsV.filter((r) => !engelliSaglayici.has(saglayiciOf(r.model))) : rowsV;
-  const kabulDilimV = engelliSaglayici.size ? dilimV.filter((r) => !engelliSaglayici.has(saglayiciOf(r.model))) : dilimV;
+  const kabulRowsE = engelliSaglayici.size ? rowsV.filter((r) => !engelliSaglayici.has(saglayiciOf(r.model))) : rowsV;
+  const kabulDilimE = engelliSaglayici.size ? dilimV.filter((r) => !engelliSaglayici.has(saglayiciOf(r.model))) : dilimV;
+  const { rows: kabulRowsV, dilim: kabulDilimV } = fableKesimUygula(kabulRowsE, kabulDilimE, prevH.results);
 
   const vkey = (v) => v.join(",");
   const eskiH = new Map(prevH.results.map((r) => [`${r.hour}|${r.model}|${r.sid}`, vkey([r.input, r.output, r.cw5m, r.cw1h, r.cr, r.messages])]));
   const eski5 = new Map(prev5.results.map((r) => [`${r.bucket}|${r.model}|${r.sid}`, vkey([r.input, r.output, r.cw5m, r.cw1h, r.cr, r.messages])]));
 
-  // Önceden gönderilmiş saatlerin sonradan azalması (ofis bazında, hariç tutmadan bağımsız): kayıtlar silinmiş ya da değiştirilmiş olabilir
+  // Önceden gönderilmiş saatlerin sonradan azalması (ofis bazında, hariç tutmadan bağımsız): kayıtlar silinmiş ya da değiştirilmiş olabilir.
+  // Antigravity modelleri (agy-*) saat bazında "agy-*" anahtarıyla gruplanır ki v31 ("agy-gemini") -> v40 ("agy-gemini-4-carbon" vb.)
+  // geçişinde model adı ayrıntılanırken sahte azalan_gemini uyarısı üretilmesin.
   const lostBySgl = { claude: 0, chatgpt: 0, gemini: 0 };
   const winFrom = Math.floor(now / 3600) * 3600 - 7 * 86400;
   const tokOf = (v) => v[0] + v[1] + v[2] + v[3] + v[4]; // mesaj sayısı hariç
+  const anomaliModelAnahtari = (model) => {
+    const t = tabanAd(model);
+    return t.startsWith("agy-") ? "agy-*" : t;
+  };
   const inc = new Map();
   for (const r of kabulRowsV) {
-    const k = r.h + "|" + tabanAd(r.model);
+    const k = r.h + "|" + anomaliModelAnahtari(r.model);
     inc.set(k, (inc.get(k) || 0) + tokOf(r.vals));
   }
   const prevTok = new Map();
   for (const r of prevH.results) {
     const sgl = saglayiciOf(r.model);
-    if (r.hour < winFrom || (r.sid && r.sid.startsWith("manuel:")) || engelliSaglayici.has(sgl)) continue;
-    const k = r.hour + "|" + tabanAd(r.model);
+    if (!izinliSet.has(sgl) || r.hour < winFrom || (r.sid && r.sid.startsWith("manuel:")) || engelliSaglayici.has(sgl) || fableKesilmisSatir(r.model, r.hour)) continue;
+    const k = r.hour + "|" + anomaliModelAnahtari(r.model);
     prevTok.set(k, (prevTok.get(k) || 0) + tokOf([r.input, r.output, r.cw5m, r.cw1h, r.cr]));
   }
   for (const [k, tok] of prevTok) {
@@ -1490,7 +1712,9 @@ async function handleIngest(req, env, ctx) {
   try {
     const parsed = JSON.parse((old && old.hesaplar) || "{}");
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      for (const sgl of SAGLAYICILAR) if (typeof parsed[sgl] === "string" && SID_RE.test(parsed[sgl])) eskiHesaplar[sgl] = parsed[sgl];
+      for (const sgl of SAGLAYICILAR) {
+        if (izinliSet.has(sgl) && typeof parsed[sgl] === "string" && SID_RE.test(parsed[sgl])) eskiHesaplar[sgl] = parsed[sgl];
+      }
     }
   } catch {}
   const cihazHesaplar = { ...eskiHesaplar, ...gelenHesap };
@@ -1499,17 +1723,19 @@ async function handleIngest(req, env, ctx) {
     const parsedEp = JSON.parse((old && old.hesap_eposta) || "{}");
     if (parsedEp && typeof parsedEp === "object" && !Array.isArray(parsedEp)) {
       for (const sgl of SAGLAYICILAR) {
+        if (!izinliSet.has(sgl)) continue;
         const ep = epostaTemizle(parsedEp[sgl]);
         if (ep) cihazEpostalar[sgl] = ep;
       }
     }
   } catch {}
   for (const sgl of SAGLAYICILAR) {
+    if (!izinliSet.has(sgl)) continue;
     if (gelenEposta[sgl]) cihazEpostalar[sgl] = gelenEposta[sgl];
     else if (gelenHesap[sgl] && eskiHesaplar[sgl] && gelenHesap[sgl] !== eskiHesaplar[sgl]) delete cihazEpostalar[sgl];
   }
 
-  // Kontrol bulguları: yalnızca kayıtlı olduğu ve ortak hesapla kullandığı ofislerin bulguları geçerlidir.
+  // Kontrol bulguları: yalnızca izinli, kayıtlı olduğu ve ortak hesapla kullandığı ofislerin bulguları geçerlidir.
   // Farklı kişisel hesap kullanımı şüpheli/dikkat sayılmaz (s: "b" = bilgi).
   const cflags = [];
   const yeniYapiskan = [];
@@ -1517,7 +1743,7 @@ async function handleIngest(req, env, ctx) {
     for (const f of body.c.slice(0, 20)) {
       if (f && /^[a-z0-9_]{1,32}$/.test(f.k) && (f.s === "s" || f.s === "d") && typeof f.t === "string") {
         const p = bayrakSaglayici(f.k);
-        if (p && (!kayitliOfisler.has(p) || engelliSaglayici.has(p))) continue;
+        if (p && (!izinliSet.has(p) || !kayitliOfisler.has(p) || engelliSaglayici.has(p))) continue;
         const temiz = { k: f.k, s: f.s, t: f.t.slice(0, 140) };
         cflags.push(temiz);
         if ((f.k.startsWith("silinen_") || f.k.startsWith("kuculen_")) && f.s === "s") {
@@ -1534,7 +1760,7 @@ async function handleIngest(req, env, ctx) {
     sflags.push({ k: "saat", s: "d", t: `Bilgisayar saati sunucudan ${saatFarki} sn farklı` });
   }
   for (const sgl of SAGLAYICILAR) {
-    if (!kayitliOfisler.has(sgl) || engelliSaglayici.has(sgl)) continue;
+    if (!izinliSet.has(sgl) || !kayitliOfisler.has(sgl) || engelliSaglayici.has(sgl)) continue;
     const ad = SAGLAYICI_AD[sgl] || sgl;
     const kod = "azalan_" + sgl;
     const kayip = lostBySgl[sgl] || 0;
@@ -1577,10 +1803,11 @@ async function handleIngest(req, env, ctx) {
   // Kod/ikili müdahalesi denemesi yapıldıysa 48 saat boyunca görünür tut (hemen eski haline döndürse bile gizlenemesin)
   const eskiMudahale = oldFlags.find((f) => f && f.k === "mudahale_istemci" && f.at && now - f.at < 48 * 3600);
   if (eskiMudahale) sflags.push(eskiMudahale);
+  const gelenCalisanPaket = muhur.muhurlu ? muhur.paket : "";
   const yazilacak = [
     ...yeniKilitStmts,
-    env.DB.prepare("UPDATE devices SET client_ver = ?, os = COALESCE(?, os), flags = ?, srv_flags = ?, bildirim_son = MAX(bildirim_son, ?), hesaplar = ?, hesap_eposta = ? WHERE id = ?")
-      .bind(clientVer, osAdi, JSON.stringify(cflags), JSON.stringify(sflags), bs === null ? 0 : bs, JSON.stringify(cihazHesaplar), JSON.stringify(cihazEpostalar), device),
+    env.DB.prepare("UPDATE devices SET client_ver = ?, os = COALESCE(?, os), flags = ?, srv_flags = ?, bildirim_son = MAX(bildirim_son, ?), hesaplar = ?, hesap_eposta = ?, calisan_paket = ? WHERE id = ?")
+      .bind(clientVer, osAdi, JSON.stringify(cflags), JSON.stringify(sflags), bs === null ? 0 : bs, JSON.stringify(cihazHesaplar), JSON.stringify(cihazEpostalar), gelenCalisanPaket, device),
   ];
   // Sid'siz eski satırlar (eski istemciler): istemci bu pencereyi etiketli olarak yeniden gönderir; çift sayılmasın diye silinir
   if (kabulRowsV.some((r) => r.sid) && prevH.results.some((r) => r.sid === "")) {
@@ -1588,6 +1815,50 @@ async function handleIngest(req, env, ctx) {
   }
   if (kabulDilimV.some((r) => r.sid) && prev5.results.some((r) => r.sid === "")) {
     yazilacak.push(env.DB.prepare("DELETE FROM usage_5m WHERE device_id = ? AND sid = '' AND bucket >= ?").bind(device, dilimBasi));
+  }
+  // v31 -> v40 geçişi: eski "agy-gemini" (veya değişen agy-*) satırlarının aynı sohbet (sid) için "agy-gemini-4-carbon" vb.
+  // spesifik model adlarıyla yenilenmesi sırasında çift sayım oluşmaması için artık gönderilmeyen eski agy-* satırlarını temizle:
+  const gelenAnahtarSet = new Set(kabulRowsV.map((r) => `${r.h}|${r.model}|${r.sid}`));
+  const gelenSidSet = new Set();
+  const gelenSpesifikAgySaatSet = new Set();
+  for (const r of kabulRowsV) {
+    if (r.model.startsWith("agy-")) {
+      if (r.sid) gelenSidSet.add(r.sid);
+      if (tabanAd(r.model) !== "agy-gemini") gelenSpesifikAgySaatSet.add(r.h);
+    }
+  }
+  if (gelenSidSet.size > 0 || gelenSpesifikAgySaatSet.size > 0) {
+    for (const p of prevH.results) {
+      if (!p.model.startsWith("agy-") || (p.sid && p.sid.startsWith("manuel:")) || fableKesilmisSatir(p.model, p.hour)) continue;
+      if (gelenAnahtarSet.has(`${p.hour}|${p.model}|${p.sid}`)) continue;
+      if ((p.sid && gelenSidSet.has(p.sid)) || (!p.sid && tabanAd(p.model) === "agy-gemini" && gelenSpesifikAgySaatSet.has(p.hour))) {
+        yazilacak.push(
+          env.DB.prepare("DELETE FROM usage_h WHERE device_id = ? AND hour = ? AND model = ? AND sid = ?")
+            .bind(device, p.hour, p.model, p.sid)
+        );
+      }
+    }
+  }
+  const gelenDilimAnahtarSet = new Set(kabulDilimV.map((r) => `${r.t}|${r.model}|${r.sid}`));
+  const gelenDilimSidSet = new Set();
+  let gelenSpesifikAgyDilimVar = false;
+  for (const r of kabulDilimV) {
+    if (r.model.startsWith("agy-")) {
+      if (r.sid) gelenDilimSidSet.add(r.sid);
+      if (tabanAd(r.model) !== "agy-gemini") gelenSpesifikAgyDilimVar = true;
+    }
+  }
+  if (gelenDilimSidSet.size > 0 || gelenSpesifikAgyDilimVar) {
+    for (const p of prev5.results) {
+      if (!p.model.startsWith("agy-") || fableKesilmisSatir(p.model, p.bucket)) continue;
+      if (gelenDilimAnahtarSet.has(`${p.bucket}|${p.model}|${p.sid}`)) continue;
+      if ((p.sid && gelenDilimSidSet.has(p.sid)) || (tabanAd(p.model) === "agy-gemini" && gelenSpesifikAgyDilimVar)) {
+        yazilacak.push(
+          env.DB.prepare("DELETE FROM usage_5m WHERE device_id = ? AND bucket = ? AND model = ? AND sid = ?")
+            .bind(device, p.bucket, p.model, p.sid)
+        );
+      }
+    }
   }
   // Devir eşlemesi (sürüm 15+): devam ettirilen sohbetlerin eski sid'li satırları kök sid altında yeniden gönderilir;
   // çift sayılmasın diye bu pencerede eski sid'li satırlar silinir. Geçersiz dv yok sayılır (istek reddedilmez).
@@ -1637,7 +1908,7 @@ async function handleIngest(req, env, ctx) {
     yazilacak.push(env.DB.prepare("DELETE FROM usage_5m WHERE device_id = ? AND bucket < ?").bind(device, now - 14 * 3600));
   }
 
-  const lim = body.l === undefined || clientVer < LIMIT_MIN_SURUM || engelliSaglayici.has("claude") ? null : limitOkumaV(body.l, now);
+  const lim = !izinliSet.has("claude") || body.l === undefined || clientVer < LIMIT_MIN_SURUM || engelliSaglayici.has("claude") ? null : limitOkumaV(body.l, now);
   if (lim && clientVer < 27) delete lim.r["seven_day.resets_at"];
   if (!gelenHaftaReset.claude && lim && Number.isFinite(lim.r["seven_day.resets_at"]) && lim.r["seven_day.resets_at"] <= lim.t + 10 * 86400) {
     const sr = sonrakiHaftaSn(lim.r["seven_day.resets_at"], now);
@@ -1646,7 +1917,7 @@ async function handleIngest(req, env, ctx) {
   const kabulPlim = {};
   if (body.lp && typeof body.lp === "object" && !Array.isArray(body.lp) && clientVer >= 18) {
     for (const sgl of ["chatgpt", "gemini"]) {
-      if (engelliSaglayici.has(sgl) || body.lp[sgl] === undefined) continue;
+      if (!izinliSet.has(sgl) || engelliSaglayici.has(sgl) || body.lp[sgl] === undefined) continue;
       const plim = limitOkumaV(body.lp[sgl], now);
       if (!plim) continue;
       if (sgl === "gemini" && clientVer < 29) delete plim.r["seven_day.resets_at"];
@@ -1657,10 +1928,10 @@ async function handleIngest(req, env, ctx) {
       }
     }
   }
-  // Diskten okunan haftalık sıfırlama zamanı: yalnızca kayıtlı olduğu ofiste ve ortak hesabı kullanan cihazlar güncelleyebilir
+  // Diskten okunan haftalık sıfırlama zamanı: yalnızca izinli, kayıtlı olduğu ofiste ve ortak hesabı kullanan cihazlar güncelleyebilir
   for (const sgl of SAGLAYICILAR) {
     const yeniReset = gelenHaftaReset[sgl];
-    if (!yeniReset || !kayitliOfisler.has(sgl) || engelliSaglayici.has(sgl)) continue;
+    if (!yeniReset || !izinliSet.has(sgl) || !kayitliOfisler.has(sgl) || engelliSaglayici.has(sgl)) continue;
     const mevcutOto = otoMap.get(sgl);
     const degisti = !mevcutOto || Math.abs((mevcutOto.reset_at || 0) - yeniReset) >= 60 || now - (mevcutOto.okundu_at || 0) >= 3600;
     otoMap.set(sgl, { reset_at: yeniReset, okundu_at: now, cihaz_id: device });
@@ -1678,19 +1949,16 @@ async function handleIngest(req, env, ctx) {
 
   await env.DB.batch(yazilacak);
 
-  // Tüm kayıtlı bilgisayarlar mühürlü sürüme (>=31 ve güncel sürüme) geçtiği anda kilidi otomatik devreye al:
-  if (muhur.aktif && muhur.gecerli && clientVer >= MUHUR_ILK_SURUM) {
-    const hedefSurum = SON_SURUM >= MUHUR_ILK_SURUM ? SON_SURUM : MUHUR_ILK_SURUM;
+  // Tüm kayıtlı bilgisayarlar hedef mühürlü sürüme (>=40 ve güncel sürüme) geçtiği anda kilidi otomatik devreye al:
+  const sSurum = sonSurumOf();
+  const hedefSurum = Math.max(MUHUR_ILK_SURUM, sSurum);
+  if (muhur.aktif && muhur.gecerli && muhur.muhurlu && clientVer >= hedefSurum && sSurum >= MUHUR_ILK_SURUM) {
     if (!sistemAyar.muhurZorunlu || (sistemAyar.zorunluMinSurum || 0) < hedefSurum) {
       const sayim = await env.DB.prepare(
-        "SELECT COUNT(*) AS top, SUM(CASE WHEN client_ver < ? THEN 1 ELSE 0 END) AS eski31, SUM(CASE WHEN client_ver < ? THEN 1 ELSE 0 END) AS eskiSon FROM devices"
-      ).bind(MUHUR_ILK_SURUM, hedefSurum).first();
-      if (sayim && Number(sayim.top) > 0) {
-        if (Number(sayim.eskiSon) === 0 && (!sistemAyar.muhurZorunlu || (sistemAyar.zorunluMinSurum || 0) < hedefSurum)) {
-          await ayarKaydet(env, { muhurZorunlu: true, zorunluMinSurum: hedefSurum });
-        } else if (!sistemAyar.muhurZorunlu && Number(sayim.eski31) === 0) {
-          await ayarKaydet(env, { muhurZorunlu: true, zorunluMinSurum: Math.max(sistemAyar.zorunluMinSurum || 0, MUHUR_ILK_SURUM) });
-        }
+        "SELECT COUNT(*) AS top, SUM(CASE WHEN client_ver < ? THEN 1 ELSE 0 END) AS eskiHedef FROM devices"
+      ).bind(hedefSurum).first();
+      if (sayim && Number(sayim.top) > 0 && Number(sayim.eskiHedef) === 0) {
+        await ayarKaydet(env, { muhurZorunlu: true, zorunluMinSurum: hedefSurum });
       }
     }
   }
@@ -1771,22 +2039,86 @@ async function handleIngest(req, env, ctx) {
   await fiyatYukle(env, ctx);
   let asim = null;
   try { asim = (await asimTablosu(env, now)).get(device) || null; } catch {}
-  return json({ tamam: true, satir: rowsV.length, yazilan: stmts.length + m5.length, b: bild, esik: esikler(FIYAT), asim });
+  return json({ tamam: true, satir: rowsV.length, yazilan: stmts.length + m5.length, b: bild, esik: esikler(FIYAT, now * 1000), asim, paket: etkinPaket });
+}
+
+async function handleKurulumPaket(req, env, url) {
+  const ip = req.headers.get("cf-connecting-ip") || "yok";
+  if (!(await oranDenetle(env, "kurpaket:" + ip, 30, 60))) {
+    return json({ ok: false, paket: "cgm", hata: "çok fazla istek" }, 429);
+  }
+  const kod = String(url.searchParams.get("kod") || "").toUpperCase().trim();
+  if (!/^[A-Z0-9]{5}-[A-Z0-9]{5}$/.test(kod)) {
+    return json({ ok: false, paket: "cgm" });
+  }
+  const now = Math.floor(Date.now() / 1000);
+  const row = await env.DB.prepare("SELECT izinli_saglayici, used_at, expires_at FROM pair_codes WHERE code = ?").bind(kod).first();
+  if (row && (!row.used_at || Number(row.used_at) === 0) && Number(row.expires_at) > now) {
+    return json({ ok: true, paket: cihazEtkinPaket(row.izinli_saglayici) });
+  }
+  return json({ ok: false, paket: "cgm" });
 }
 
 async function handlePair(req, env) {
+  const rawBuf = new Uint8Array(await req.arrayBuffer());
   let body;
-  try { body = await req.json(); } catch { return json({ hata: "json" }, 400); }
+  try { body = JSON.parse(new TextDecoder().decode(rawBuf)); } catch { return json({ hata: "json" }, 400); }
   const code = String(body.code || "").toUpperCase().trim();
-  const secret = String(body.secret || "");
-  if (!/^[A-Z0-9]{5}-[A-Z0-9]{5}$/.test(code) || !/^[a-f0-9]{64}$/.test(secret)) return json({ hata: "geçersiz" }, 400);
+  const secret = String(body.secret || "").trim().toLowerCase();
+  const devId = String(body.device_id || req.headers.get("x-device") || "").trim().toLowerCase();
   const now = Math.floor(Date.now() / 1000);
-  const pc = await env.DB.prepare("DELETE FROM pair_codes WHERE code = ? AND expires_at > ? RETURNING label, uye_id").bind(code, now).first();
+
+  // Onarım kipi: eşleşme kodu verilmemişse mevcut cihazın kimliği + gizli anahtarı (veya HMAC imzası) doğrulanır
+  // ve kayıtlı izinli_saglayici korunarak hedef paket döndürülür.
+  if (!code && /^[a-f0-9]{32}$/.test(devId)) {
+    const mevcut = await env.DB.prepare("SELECT id, label, secret, izinli_saglayici FROM devices WHERE id = ?").bind(devId).first();
+    if (!mevcut) return json({ hata: "cihaz bulunamadı" }, 401);
+    let dogrulandi = false;
+    if (/^[a-f0-9]{64}$/.test(secret) && (await safeEqual(secret, String(mevcut.secret || "").toLowerCase()))) {
+      dogrulandi = true;
+    } else {
+      const tsRaw = req.headers.get("x-timestamp") || "";
+      const sig = req.headers.get("x-signature") || "";
+      if (/^\d{10}$/.test(tsRaw) && /^[a-f0-9]{64}$/.test(sig) && Math.abs(now - Number(tsRaw)) <= MAX_SKEW) {
+        const rawSha = await sha256Hex(rawBuf);
+        const msg = `v1\n${devId}\n${Number(tsRaw)}\n${rawSha}`;
+        const key = await crypto.subtle.importKey("raw", hexToBytes(mevcut.secret), { name: "HMAC", hash: "SHA-256" }, false, ["verify"]);
+        dogrulandi = await crypto.subtle.verify("HMAC", key, hexToBytes(sig), enc.encode(msg));
+      }
+    }
+    if (!dogrulandi) return json({ hata: "imza geçersiz" }, 401);
+    const paket = cihazEtkinPaket(mevcut.izinli_saglayici);
+    return json({ ok: true, tamam: true, device_id: mevcut.id, label: mevcut.label, izinli_saglayici: paket, paket });
+  }
+
+  if (!/^[A-Z0-9]{5}-[A-Z0-9]{5}$/.test(code) || !/^[a-f0-9]{64}$/.test(secret)) return json({ hata: "geçersiz" }, 400);
+  const pc = await env.DB.prepare(
+    "UPDATE pair_codes SET used_at = ? WHERE code = ? AND (used_at = 0 OR used_at IS NULL) AND expires_at > ? RETURNING label, uye_id, izinli_saglayici"
+  ).bind(now, code, now).first();
   if (!pc) return json({ hata: "kod geçersiz ya da süresi dolmuş" }, 401);
+
+  const kodIzin = paketNormalize(pc.izinli_saglayici);
+  const eskiSecret = String(body.eski_secret || "").trim().toLowerCase();
+  if (/^[a-f0-9]{32}$/.test(devId) && /^[a-f0-9]{64}$/.test(eskiSecret)) {
+    const mevcut = await env.DB.prepare("SELECT id, secret, izinli_saglayici FROM devices WHERE id = ?").bind(devId).first();
+    if (mevcut && (await safeEqual(eskiSecret, String(mevcut.secret || "").toLowerCase()))) {
+      const korunanIzin = kodIzin || paketNormalize(mevcut.izinli_saglayici);
+      const paket = cihazEtkinPaket(korunanIzin);
+      await env.DB.prepare("UPDATE devices SET label = ?, secret = ?, uye_id = COALESCE(NULLIF(?, ''), uye_id), izinli_saglayici = ? WHERE id = ?")
+        .bind(pc.label, secret, pc.uye_id || "", korunanIzin, devId).run();
+      okumaOnbellekTemizle(true);
+      return json({ device_id: devId, label: pc.label, izinli_saglayici: paket, paket });
+    }
+  }
+
   const id = toHex(crypto.getRandomValues(new Uint8Array(16)));
-  await env.DB.prepare("INSERT INTO devices (id, label, secret, created_at, uye_id, bildirim_son) VALUES (?,?,?,?,?,(SELECT COALESCE(MAX(id), 0) FROM bildirimler))").bind(id, pc.label, secret, now, pc.uye_id || "").run();
+  const kaydedilenIzin = kodIzin || "";
+  const paket = cihazEtkinPaket(kaydedilenIzin);
+  await env.DB.prepare(
+    "INSERT INTO devices (id, label, secret, created_at, uye_id, bildirim_son, izinli_saglayici) VALUES (?,?,?,?,?,(SELECT COALESCE(MAX(id), 0) FROM bildirimler),?)"
+  ).bind(id, pc.label, secret, now, pc.uye_id || "", kaydedilenIzin).run();
   okumaOnbellekTemizle(true);
-  return json({ device_id: id, label: pc.label });
+  return json({ device_id: id, label: pc.label, izinli_saglayici: paket, paket });
 }
 
 // ---------- D1 okuma önbelleği (ücretsiz katman günlük 5M rows_read sınırını korumak için) ----------
@@ -1859,7 +2191,7 @@ async function handleWeek(env, url, ctx) {
   const recentHaftaIcinde = start === current && recentFrom >= sorguAlt;
 
   const [devices, railGecmis, railSimdiki, firstList, lim, hourly, recentSorgu, five, uyeler, okuma, ayar, h5rows, fableOkuma, gecmisW, fableW, kilitRows, uyeOfisMap] = await Promise.all([
-    env.DB.prepare("SELECT id, label, created_at, last_seen, client_ver, os, flags, srv_flags, uye_id, hesaplar, hesap_eposta FROM devices ORDER BY created_at").all(),
+    env.DB.prepare("SELECT id, label, created_at, last_seen, client_ver, os, flags, srv_flags, uye_id, hesaplar, hesap_eposta, izinli_saglayici, calisan_paket FROM devices ORDER BY created_at").all(),
     railGecmisGetir(env, baz, railFrom, current, now),
     start === current
       ? Promise.resolve(null)
@@ -1921,10 +2253,11 @@ async function handleWeek(env, url, ctx) {
     const k = `${r.device_id}|${d}|${r.model}`;
     let g = gunlukHarita.get(k);
     if (!g) {
-      g = { device_id: r.device_id, d, model: r.model, input: 0, output: 0, cw5m: 0, cw1h: 0, cr: 0, messages: 0 };
+      g = { device_id: r.device_id, d, model: r.model, input: 0, output: 0, cw5m: 0, cw1h: 0, cr: 0, messages: 0, usd: 0 };
       gunlukHarita.set(k, g);
     }
     g.input += r.input; g.output += r.output; g.cw5m += r.cw5m; g.cw1h += r.cw1h; g.cr += r.cr; g.messages += r.messages || 0;
+    g.usd += costOf(r);
   }
   const rowsResults = [...gunlukHarita.values()];
   const recentResults = recentHaftaIcinde ? hourly.results.filter((r) => r.hour >= recentFrom) : (recentSorgu ? recentSorgu.results : []);
@@ -2007,7 +2340,7 @@ async function handleWeek(env, url, ctx) {
     const ws = baz + r.w * WEEK;
     if (!weeks.has(ws)) weeks.set(ws, { start: ws, usd: 0, byDevice: {}, byDeviceTok: {} });
     const w = weeks.get(ws);
-    const c = costOf(r);
+    const c = typeof r.usd === "number" ? r.usd : costOf(r, (ws + 3 * 86400) * 1000);
     const t = (r.input || 0) + (r.output || 0) + (r.cw5m || 0) + (r.cw1h || 0) + (r.cr || 0);
     w.usd += c;
     w.byDevice[r.device_id] = (w.byDevice[r.device_id] || 0) + c;
@@ -2026,14 +2359,17 @@ async function handleWeek(env, url, ctx) {
     if (sglOk(r) && Number.isFinite(r.h) && (firstH === null || r.h < firstH)) firstH = r.h;
   }
   const haftaSifirlamaTum = haftaSifirlamaHaritasi(sistemAyar, otoMap, now, cihazAdMap);
-  const muhurEtkinSunucu = typeof env.MUHUR_ANAHTAR === "string" && /^[0-9a-f]{64}$/i.test(env.MUHUR_ANAHTAR.trim()) && SON_SURUM >= MUHUR_ILK_SURUM;
-  const bekleyenCihazlar = devices.results.filter((d) => (d.client_ver || 0) < MUHUR_ILK_SURUM).map((d) => d.label);
+  const sSurum = sonSurumOf();
+  const hedefMinSurum = Math.max(MUHUR_ILK_SURUM, sSurum);
+  const muhurEtkinSunucu = typeof env.MUHUR_ANAHTAR === "string" && /^[0-9a-f]{64}$/i.test(env.MUHUR_ANAHTAR.trim()) && sSurum >= MUHUR_KONTROL_SURUM;
+  const bekleyenCihazlar = devices.results.filter((d) => (d.client_ver || 0) < hedefMinSurum).map((d) => d.label);
   const yanitVeri = {
-    now, start, end, current, latest: SON_SURUM,
+    now, start, end, current, latest: sSurum,
     muhurDurum: {
       aktif: muhurEtkinSunucu,
-      zorunlu: !!sistemAyar.muhurZorunlu,
-      minSurum: sistemAyar.muhurZorunlu ? Math.max(MUHUR_ILK_SURUM, sistemAyar.zorunluMinSurum || MUHUR_ILK_SURUM) : MUHUR_ILK_SURUM,
+      zorunlu: !!(sistemAyar.muhurZorunlu && (sistemAyar.zorunluMinSurum || 0) >= MUHUR_ILK_SURUM),
+      minSurum: sistemAyar.muhurZorunlu ? Math.max(MUHUR_KONTROL_SURUM, sistemAyar.zorunluMinSurum || MUHUR_KONTROL_SURUM) : hedefMinSurum,
+      hedefSurum: hedefMinSurum,
       bekleyen: bekleyenCihazlar,
     },
     saglayici,
@@ -2043,8 +2379,10 @@ async function handleWeek(env, url, ctx) {
     taban_t: tabanT,
     ayar: ayarSaglayiciIcin(sistemAyar, saglayici),
     firstData: firstH ? weekStartFor(firstH, baz) : current,
-    devices: devices.results.map(({ flags, srv_flags, hesaplar, hesap_eposta, ...d }) => {
+    devices: devices.results.map(({ flags, srv_flags, hesaplar, hesap_eposta, izinli_saglayici, calisan_paket, ...d }) => {
       const kayitli = cihazKayitliOfisler(d.id, d.uye_id, uyeOfisMap, sistemAyar);
+      const etkinIzin = cihazEtkinPaket(izinli_saglayici);
+      const izinliSetD = new Set(pakettenSaglayicilar(etkinIzin));
       let hamF = [];
       try { hamF = [...JSON.parse(flags || "[]"), ...JSON.parse(srv_flags || "[]")]; } catch {}
       const farkliSet = new Set();
@@ -2060,30 +2398,42 @@ async function handleWeek(env, url, ctx) {
         gorulenK.add(x.k);
         if (x.k.startsWith("farkli_hesap_")) {
           const p = x.k.slice("farkli_hesap_".length);
+          if (!izinliSetD.has(p)) continue;
           const metin = String(x.t || "").replace(/^Farklı (Claude|ChatGPT|Gemini) hesabı algılandı/, "Ayrı $1 hesabı");
           f.push({ k: x.k, s: "b", p, t: metin });
           continue;
         }
         const p = bayrakSaglayici(x.k);
-        if (p && (!kayitli.has(p) || farkliSet.has(p))) continue;
+        if (p && (!izinliSetD.has(p) || !kayitli.has(p) || farkliSet.has(p))) continue;
         f.push({ k: x.k, s: x.s, p, t: x.t });
       }
       let hObj = {};
       try {
         const p = JSON.parse(hesaplar || "{}");
-        if (p && typeof p === "object" && !Array.isArray(p)) hObj = p;
+        if (p && typeof p === "object" && !Array.isArray(p)) {
+          for (const sgl of SAGLAYICILAR) if (izinliSetD.has(sgl) && p[sgl]) hObj[sgl] = p[sgl];
+        }
       } catch {}
       let epObj = {};
       try {
         const pe = JSON.parse(hesap_eposta || "{}");
         if (pe && typeof pe === "object" && !Array.isArray(pe)) {
           for (const sgl of SAGLAYICILAR) {
+            if (!izinliSetD.has(sgl)) continue;
             const ep = epostaTemizle(pe[sgl]);
             if (ep) epObj[sgl] = ep;
           }
         }
       } catch {}
-      return { ...d, flags: f, kayitliOfisler: [...kayitli], hesaplar: hObj, hesapEposta: epObj };
+      return {
+        ...d,
+        izinli_saglayici: etkinIzin,
+        calisan_paket: calisan_paket || "",
+        flags: f,
+        kayitliOfisler: [...kayitli],
+        hesaplar: hObj,
+        hesapEposta: epObj,
+      };
     }),
     uyeler: uyeler.results,
     usage,
@@ -2154,7 +2504,7 @@ async function handleLimitAnaliz(env, url, ctx) {
   for (const r of rail.results) {
     if (!sglOk(r)) continue;
     const ws = baz + r.w * WEEK;
-    weeks.set(ws, (weeks.get(ws) || 0) + costOf(r));
+    weeks.set(ws, (weeks.get(ws) || 0) + costOf(r, (ws + 3 * 86400) * 1000));
   }
   let firstH = null;
   for (const r of firstList || []) {
@@ -2215,8 +2565,82 @@ async function ofisIzni(req, path, erisim) {
   return false;
 }
 function ayarKapsamaGore(ayar, erisim) {
-  if (erisim.admin) return ayar;
-  return { ...ayar, saglayiciAyar: Object.fromEntries(SAGLAYICILAR.filter((s) => erisim.yon.has(s)).map((s) => [s, (ayar.saglayiciAyar || {})[s] || {}])) };
+  const { github_surum_kontrol: _gk, ...temiz } = ayar || {};
+  if (erisim.admin) return temiz;
+  return { ...temiz, saglayiciAyar: Object.fromEntries(SAGLAYICILAR.filter((s) => erisim.yon.has(s)).map((s) => [s, (temiz.saglayiciAyar || {})[s] || {}])) };
+}
+
+async function handleSistemGuncelleme(env, url, erisim) {
+  if (!erisim.admin) return json({ hata: "Bu işlem yalnızca tam yetkili sistem yöneticisi içindir." }, 403);
+  const now = Math.floor(Date.now() / 1000);
+  const mevcutSurum = Math.max(MUHUR_ILK_SURUM, sonSurumOf());
+  const hamRepo = String(env.GITHUB_REPO || "doganau/token-panosu").trim();
+  const repo = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(hamRepo) ? hamRepo : "doganau/token-panosu";
+  const varsayilanUrl = `https://github.com/${repo}/releases`;
+  const zorla = url.searchParams.get("zorla") === "1";
+
+  const ayar = await ayarYukle(env);
+  const onbellek = ayar.github_surum_kontrol;
+  if (!zorla && onbellek && Number.isFinite(onbellek.t) && now - onbellek.t < 6 * 3600) {
+    const ss = Number.isFinite(onbellek.son_surum) ? onbellek.son_surum : mevcutSurum;
+    const iu = typeof onbellek.indir_url === "string" && onbellek.indir_url.startsWith("https://") ? onbellek.indir_url : varsayilanUrl;
+    return json({
+      mevcut_surum: mevcutSurum,
+      son_surum: ss,
+      guncel: ss <= mevcutSurum,
+      indir_url: iu,
+      kontrol_edildi: onbellek.t,
+    });
+  }
+
+  let sonSurum = mevcutSurum;
+  let indirUrl = varsayilanUrl;
+  try {
+    const yanit = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, {
+      headers: { "user-agent": "token-panosu", accept: "application/vnd.github+json" },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (yanit.ok) {
+      const veri = await yanit.json();
+      const m = String((veri && (veri.tag_name || veri.name)) || "").match(/v?(\d+)/i);
+      if (m) sonSurum = Number(m[1]);
+      if (veri && typeof veri.html_url === "string" && veri.html_url.startsWith("https://")) {
+        indirUrl = veri.html_url;
+      }
+    } else {
+      const hamGo = await fetch(`https://raw.githubusercontent.com/${repo}/main/go/main.go`, {
+        headers: { "user-agent": "token-panosu" },
+        signal: AbortSignal.timeout(4000),
+      });
+      if (hamGo.ok) {
+        const metin = await hamGo.text();
+        const mg = metin.match(/^\s*Surum\s*=\s*(\d+)/m);
+        if (mg && Number(mg[1]) > sonSurum) {
+          sonSurum = Number(mg[1]);
+          indirUrl = `https://github.com/${repo}`;
+        }
+      }
+    }
+  } catch {
+    // Çevrimdışı veya henüz GitHub sürümü yoksa sessizce güncel kabul et (fail-open)
+  }
+
+  try {
+    const mevcutAyar = await ayarYukle(env, true);
+    const yeniAyar = ayarTemizle({ github_surum_kontrol: { t: now, son_surum: sonSurum, indir_url: indirUrl } }, mevcutAyar);
+    await env.DB.prepare("INSERT INTO sistem_ayar (id, veri, guncellendi) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET veri = excluded.veri, guncellendi = excluded.guncellendi")
+      .bind(JSON.stringify(yeniAyar), now).run();
+    ayarBellek = yeniAyar;
+    ayarYuklendiAt = now;
+  } catch {}
+
+  return json({
+    mevcut_surum: mevcutSurum,
+    son_surum: sonSurum,
+    guncel: sonSurum <= mevcutSurum,
+    indir_url: indirUrl,
+    kontrol_edildi: now,
+  });
 }
 
 async function handleAdmin(req, env, path, url, erisim) {
@@ -2277,17 +2701,24 @@ async function handleAdmin(req, env, path, url, erisim) {
     return json({ tamam: true, ayar: ayarKapsamaGore(yeni, erisim), haftaSifirlama: hs, now });
   }
   if (path === "/api/yonetim/kod" && req.method === "POST") {
-    const { label, uye_id } = await req.json();
-    const l = String(label || "").trim().slice(0, 40);
+    const b = await req.json();
+    const l = String(b.label || "").trim().slice(0, 40);
     if (!l) return json({ hata: "Bilgisayara bir ad ver." }, 400);
-    const uye = String(uye_id || "");
+    const uye = String(b.uye_id || "");
     if (uye && !(await env.DB.prepare("SELECT 1 FROM uyeler WHERE id = ?").bind(uye).first())) return json({ hata: "Üye bulunamadı." }, 400);
+    let paket;
+    if (b.izinli_saglayici !== undefined) {
+      paket = paketNormalize(b.izinli_saglayici);
+      if (!paket) return json({ hata: "En az bir veri sağlayıcısı seçin." }, 400);
+    } else {
+      paket = uye ? await varsayilanUyePaketi(env, uye, []) : "cgm";
+    }
     const alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
-    const s = [...crypto.getRandomValues(new Uint8Array(10))].map((b) => alphabet[b % alphabet.length]).join("");
+    const s = [...crypto.getRandomValues(new Uint8Array(10))].map((x) => alphabet[x % alphabet.length]).join("");
     const code = `${s.slice(0, 5)}-${s.slice(5)}`;
     await env.DB.prepare("DELETE FROM pair_codes WHERE expires_at < ?").bind(now).run();
-    await env.DB.prepare("INSERT INTO pair_codes (code, label, expires_at, uye_id) VALUES (?,?,?,?)").bind(code, l, now + 900, uye).run();
-    return json({ code, label: l, expires_at: now + 900 });
+    await env.DB.prepare("INSERT INTO pair_codes (code, label, expires_at, uye_id, izinli_saglayici, used_at) VALUES (?,?,?,?,?,0)").bind(code, l, now + 900, uye, paket).run();
+    return json({ code, label: l, expires_at: now + 900, izinli_saglayici: paket, paket });
   }
   if (path === "/api/yonetim/fiyatlar" && req.method === "GET") {
     await fiyatYukle(env);
@@ -2326,8 +2757,16 @@ async function handleAdmin(req, env, path, url, erisim) {
     return json({ tamam: true, week: wk, taban_t: b.t });
   }
   if (path === "/api/yonetim/cihazlar" && req.method === "GET") {
-    const { results } = await env.DB.prepare("SELECT id, label, created_at, last_seen FROM devices ORDER BY created_at").all();
-    return json(results);
+    const { results } = await env.DB.prepare("SELECT id, label, created_at, last_seen, client_ver, os, uye_id, izinli_saglayici, calisan_paket FROM devices ORDER BY created_at").all();
+    return json((results || []).map((d) => ({
+      ...d,
+      izinli_saglayici: cihazEtkinPaket(d.izinli_saglayici),
+      calisan_paket: d.calisan_paket || "",
+    })));
+  }
+  if (path === "/api/yonetim/cihaz-izin" && req.method === "POST") {
+    const b = await req.json();
+    return cihazIzinUygula(env, b.device_id || b.id, b.izinli_saglayici);
   }
   if (path === "/api/yonetim/cihaz-adlandir" && req.method === "POST") {
     const { id, label } = await req.json();
@@ -2787,6 +3226,7 @@ export default {
         });
       }
       await semaHazirla(env);
+      if (p === "/api/kurulum-paket" && req.method === "GET") return await handleKurulumPaket(req, env, url);
       if (p === "/api/gonder" && req.method === "POST") return await handleIngest(req, env, ctx);
       if (p === "/api/eslestir" && req.method === "POST") return await handlePair(req, env);
       if (p === "/api/giris" && req.method === "POST") {
@@ -2815,6 +3255,7 @@ export default {
 
       // Buradan sonrası giriş ister
       if (!authed) return json({ hata: "giriş gerekli" }, 401);
+      if (p === "/api/sistem-guncelleme" && req.method === "GET") return await handleSistemGuncelleme(env, url, erisim);
       if ((p === "/api/hafta" || p === "/api/limit-analiz") && req.method === "GET") {
         const sgl = saglayiciSec(url.searchParams.get("saglayici"));
         if (!yetkili(erisim, sgl)) return json({ hata: `${SAGLAYICI_AD[sgl]} ofisine erişimin yok. Süper yöneticiden bu ofise eklenmeyi iste.`, kilitli: sgl }, 403);

@@ -1,6 +1,6 @@
 package main
 
-// İstem uzunluğuna göre fiyatlanan modeller (ör. Claude Haiku 5.5 >100B, Gemini Pro >200B, GPT-5.4+/6.x >272B).
+// İstem uzunluğuna göre fiyatlanan modeller.
 // Her istek kendi başına değerlendirilir ve istem uzunluğuna girdi, cache okuma ve cache yazma token'larının
 // hepsi dahildir.
 //
@@ -31,10 +31,14 @@ func esikGecerliAnahtar(k string) bool {
 	if len(k) == 0 || len(k) > 58 {
 		return false
 	}
-	for _, onek := range []string{"claude-", "gpt-", "gemini-", "o1", "o3", "o4", "codex-", "agy-"} {
-		if strings.HasPrefix(k, onek) {
-			return true
-		}
+	if sagClaudeEtkin && claudeEsikAnahtarMi(k) {
+		return true
+	}
+	if sagChatgptEtkin && chatgptEsikAnahtarMi(k) {
+		return true
+	}
+	if sagGeminiEtkin && geminiEsikAnahtarMi(k) {
+		return true
 	}
 	return false
 }
@@ -85,7 +89,7 @@ func tarihEkiAt(s string) string {
 	return s
 }
 
-// Modelin eşiği: tam ad, agy-/openai- alt modeli, tarih veya -preview/-latest eki atılmış ad.
+// Modelin eşiği: tam ad, alt model öneki, tarih veya -preview/-latest eki atılmış ad.
 func esikBul(esikler map[string]int64, model string) int64 {
 	if len(esikler) == 0 || model == "" {
 		return 0
@@ -93,11 +97,15 @@ func esikBul(esikler map[string]int64, model string) int64 {
 	if v, ok := esikler[model]; ok {
 		return v
 	}
-	if strings.HasPrefix(model, "agy-") && len(model) > 4 {
-		return esikBul(esikler, model[4:])
+	if sagGeminiEtkin {
+		if alt := geminiEsikAltModel(model); alt != "" {
+			return esikBul(esikler, alt)
+		}
 	}
-	if strings.HasPrefix(model, "openai-") && len(model) > 7 {
-		return esikBul(esikler, model[7:])
+	if sagChatgptEtkin {
+		if alt := chatgptEsikAltModel(model); alt != "" {
+			return esikBul(esikler, alt)
+		}
 	}
 	s := tarihEkiAt(model)
 	if v, ok := esikler[s]; ok {
@@ -110,9 +118,11 @@ func esikBul(esikler map[string]int64, model string) int64 {
 			}
 		}
 	}
-	if strings.HasPrefix(s, "claude-") && strings.Contains(s, ".") {
-		if v, ok := esikler[strings.ReplaceAll(s, ".", "-")]; ok {
-			return v
+	if sagClaudeEtkin {
+		if aday := claudeEsikAday(s); aday != "" {
+			if v, ok := esikler[aday]; ok {
+				return v
+			}
 		}
 	}
 	return 0

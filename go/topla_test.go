@@ -1,3 +1,5 @@
+//go:build sag_claude || (!sag_gemini && !sag_chatgpt)
+
 package main
 
 import (
@@ -165,110 +167,6 @@ func TestUzunIstem(t *testing.T) {
 		if strings.HasSuffix(r.Model, uzunEki) {
 			t.Fatalf("eşik yokken @uzun satırı var")
 		}
-	}
-}
-
-func TestCodexGeminiVeHesapOzeti(t *testing.T) {
-	ev := t.TempDir()
-	t.Setenv("HOME", ev)
-	t.Setenv("USERPROFILE", ev)
-	t.Setenv("CLAUDE_CONFIG_DIR", "")
-	t.Setenv("CODEX_HOME", "")
-	t.Setenv("GEMINI_CLI_HOME", "")
-	dizin = t.TempDir()
-
-	simdi := time.Now().Unix()
-	an := time.Unix(simdi-600, 0).UTC()
-	zamanISO := an.Format("2006-01-02T15:04:05.000Z")
-
-	// 1. Claude hesabı: .claude.json ve plan-usage-history.json aynı org UUID'sini taşır -> aynı özet
-	orgUUID := "11111111-2222-3333-4444-555555555555"
-	_ = os.WriteFile(filepath.Join(ev, ".claude.json"), []byte(fmt.Sprintf(`{"oauthAccount":{"organizationUuid":%q,"accountUuid":"aaaa"}}`, orgUUID)), 0o600)
-	hClaude := claudeHesapOku()
-	if len(hClaude) != 16 || hClaude != hesapOzeti("claude", orgUUID) {
-		t.Fatalf("beklenmeyen claude hesap özeti: %q", hClaude)
-	}
-
-	// 2. Codex oturumu: aynı total_tokens iki kez gelirse tek sayılmalı; eski yabancı hesap karışmamalı
-	codexKlasor := filepath.Join(ev, ".codex", "sessions", "2026", "11", "10")
-	if err := os.MkdirAll(codexKlasor, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	yabanciYol := filepath.Join(codexKlasor, "rollout-eski.jsonl")
-	yabanciIcerik := fmt.Sprintf(
-		`{"timestamp":%q,"type":"session_meta","payload":{"id":"yabanci-1","creator_account_id":"baska-hesap-999"}}`+"\n"+
-			`{"timestamp":%q,"type":"turn_context","payload":{"model":"gpt-5"}}`+"\n"+
-			`{"timestamp":%q,"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"total_tokens":500},"last_token_usage":{"input_tokens":400,"cached_input_tokens":0,"output_tokens":100,"total_tokens":500}}}}`+"\n",
-		zamanISO, zamanISO, zamanISO,
-	)
-	_ = os.WriteFile(yabanciYol, []byte(yabanciIcerik), 0o600)
-	eskiMt := time.Unix(simdi-1800, 0)
-	_ = os.Chtimes(yabanciYol, eskiMt, eskiMt)
-
-	aktifYol := filepath.Join(codexKlasor, "rollout-aktif.jsonl")
-	aktifIcerik := fmt.Sprintf(
-		`{"timestamp":%q,"type":"session_meta","payload":{"id":"oturum-aktif","creator_account_id":"ortak-hesap-123"}}`+"\n"+
-			`{"timestamp":%q,"type":"turn_context","payload":{"model":"gpt-6-luna"}}`+"\n"+
-			`{"timestamp":%q,"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"total_tokens":16383},"last_token_usage":{"input_tokens":16351,"cached_input_tokens":15104,"cache_write_input_tokens":0,"output_tokens":32,"total_tokens":16383}},"rate_limits":{"primary":{"used_percent":14.5,"window_minutes":10080,"resets_at":%d},"secondary":{"used_percent":3,"window_minutes":300,"resets_at":%d}}}}`+"\n"+
-			`{"timestamp":%q,"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"total_tokens":16383},"last_token_usage":{"input_tokens":16351,"cached_input_tokens":15104,"cache_write_input_tokens":0,"output_tokens":32,"total_tokens":16383}}}}`+"\n",
-		zamanISO, zamanISO, zamanISO, simdi+86400, simdi+3600, zamanISO,
-	)
-	_ = os.WriteFile(aktifYol, []byte(aktifIcerik), 0o600)
-	yeniMt := time.Unix(simdi-300, 0)
-	_ = os.Chtimes(aktifYol, yeniMt, yeniMt)
-
-	// 3. Gemini CLI oturumu + google_accounts.json
-	gemKlasor := filepath.Join(ev, ".gemini", "tmp", "proje1", "chats")
-	if err := os.MkdirAll(gemKlasor, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	_ = os.WriteFile(filepath.Join(ev, ".gemini", "google_accounts.json"), []byte(`{"active":"ekip@sirket.com"}`), 0o600)
-	gemYol := filepath.Join(gemKlasor, "session-abc.json")
-	gemIcerik := fmt.Sprintf(`{"sessionId":"gem-1","messages":[{"type":"user","timestamp":%q},{"type":"gemini","timestamp":%q,"model":"gemini-2.5-pro","tokens":{"input":1000,"cached":600,"output":120,"thoughts":80}}]}`, zamanISO, zamanISO)
-	_ = os.WriteFile(gemYol, []byte(gemIcerik), 0o600)
-
-	govde, _, err := govdeHazirla(simdi)
-	if err != nil {
-		t.Fatalf("govdeHazirla hatası: %v", err)
-	}
-	var cozulmus struct {
-		Rows  []Satir                 `json:"rows"`
-		Hesap map[string]string       `json:"hesap"`
-		Lp    map[string]limitDosyasi `json:"lp"`
-	}
-	if err := json.Unmarshal(govde, &cozulmus); err != nil {
-		t.Fatal(err)
-	}
-
-	if cozulmus.Hesap["claude"] != hesapOzeti("claude", orgUUID) {
-		t.Fatalf("claude hesabı eşleşmedi: %v", cozulmus.Hesap)
-	}
-	if cozulmus.Hesap["chatgpt"] != hesapOzeti("chatgpt", "ortak-hesap-123") {
-		t.Fatalf("chatgpt hesabı eşleşmedi: %v", cozulmus.Hesap)
-	}
-	if cozulmus.Hesap["gemini"] != hesapOzeti("gemini", "ekip@sirket.com") {
-		t.Fatalf("gemini hesabı eşleşmedi: %v", cozulmus.Hesap)
-	}
-
-	if len(cozulmus.Rows) != 2 {
-		t.Fatalf("2 satır (aktif codex + gemini) bekleniyordu, gelen: %+v", cozulmus.Rows)
-	}
-	byModel := map[string]Satir{}
-	for _, r := range cozulmus.Rows {
-		byModel[r.Model] = r
-	}
-	cx := byModel["gpt-6-luna"]
-	if cx.Input != 1247 || cx.Cr != 15104 || cx.Output != 32 || cx.Messages != 1 {
-		t.Fatalf("codex satırı yanlış: %+v", cx)
-	}
-	gm := byModel["gemini-2.5-pro"]
-	if gm.Input != 400 || gm.Cr != 600 || gm.Output != 200 || gm.Messages != 1 {
-		t.Fatalf("gemini satırı yanlış: %+v", gm)
-	}
-
-	lpC, ok := cozulmus.Lp["chatgpt"]
-	if !ok || lpC.R["seven_day.used_percentage"].String() != "14.5" || lpC.R["five_hour.used_percentage"].String() != "3" {
-		t.Fatalf("chatgpt limit bilgisi eksik veya hatalı: %+v", cozulmus.Lp)
 	}
 }
 

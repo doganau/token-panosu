@@ -1,3 +1,5 @@
+//go:build sag_claude || (!sag_gemini && !sag_chatgpt)
+
 package main
 
 // Limit okuması yalnızca bu bilgisayardaki dosyalardan yapılır; hiçbir Anthropic adresine bağlanılmaz,
@@ -17,48 +19,29 @@ import (
 	"strings"
 )
 
-const haftaSn int64 = 7 * 86400
-
-func sonrakiHaftaReset(referans, simdi int64) int64 {
-	if referans <= 1_600_000_000 {
-		return 0
-	}
-	if simdi <= 0 {
-		return referans
-	}
-	if referans <= simdi {
-		k := (simdi-referans)/haftaSn + 1
-		referans += k * haftaSn
-	} else if referans > simdi+haftaSn {
-		k := (referans - simdi - 1) / haftaSn
-		referans -= k * haftaSn
-	}
-	return referans
-}
-
-// Eski sürümlerin (16 ve öncesi) limit sorgusu ve durum satırı dosyaları: bulunursa silinir
-func eskiSorguTemizle() {
-	for _, ad := range []string{"limit_sorgu", "son_sorgu", "limit_api.json", "limit.json"} {
-		_ = os.Remove(filepath.Join(dizin, ad))
-	}
-}
-
 func claudeMasaustuLimitYolu() string {
+	var yol string
 	if testModu {
-		return filepath.Join(dizin, "plan-usage-history.json")
-	}
-	if runtime.GOOS == "windows" {
+		yol = filepath.Join(dizin, "plan-usage-history.json")
+	} else if runtime.GOOS == "windows" {
 		if appdata := os.Getenv("APPDATA"); appdata != "" {
-			return filepath.Join(appdata, "Claude", "plan-usage-history.json")
+			yol = filepath.Join(appdata, "Claude", "plan-usage-history.json")
 		}
 	}
-	if ev, err := os.UserHomeDir(); err == nil {
-		if runtime.GOOS == "darwin" {
-			return filepath.Join(ev, "Library", "Application Support", "Claude", "plan-usage-history.json")
+	if yol == "" {
+		ev := evDizini()
+		if ev != "" {
+			if runtime.GOOS == "darwin" {
+				yol = filepath.Join(ev, "Library", "Application Support", "Claude", "plan-usage-history.json")
+			} else {
+				yol = filepath.Join(ev, ".config", "Claude", "plan-usage-history.json")
+			}
 		}
-		return filepath.Join(ev, ".config", "Claude", "plan-usage-history.json")
 	}
-	return ""
+	if yol == "" || !yerelYolMu(yol) {
+		return ""
+	}
+	return yol
 }
 
 type masaustuGecmis struct {

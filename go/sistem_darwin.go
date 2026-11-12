@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -11,7 +10,6 @@ import (
 	"runtime"
 	"strings"
 	"syscall"
-	"unsafe"
 )
 
 const (
@@ -108,42 +106,144 @@ func zamanlayiciKaldir() {
 	}
 }
 
-func ptyAc() (*os.File, *os.File, error) {
-	master, err := os.OpenFile("/dev/ptmx", os.O_RDWR|syscall.O_NOCTTY|syscall.O_CLOEXEC, 0)
-	if err != nil {
-		return nil, nil, err
+func darwinAgOnekEngelMi(temiz string) bool {
+	if temiz == "" || temiz == "." {
+		return true
 	}
-	const (
-		tiocptygrant = 0x20007454
-		tiocptyunlk  = 0x20007452
-		tiocptygname = 0x40807453
-		tiocswinsz   = 0x80087467
-	)
-	if _, _, e := syscall.Syscall(syscall.SYS_IOCTL, master.Fd(), tiocptygrant, 0); e != 0 {
-		_ = master.Close()
-		return nil, nil, e
+	k := strings.ToLower(temiz)
+	for _, y := range []string{
+		"/home",
+		"/system/volumes/data/home",
+		"/net",
+		"/system/volumes/data/net",
+		"/network",
+		"/system/volumes/data/network",
+		"/volumes",
+		"/system/volumes/data/volumes",
+	} {
+		if k == y || strings.HasPrefix(k, y+"/") {
+			return true
+		}
 	}
-	if _, _, e := syscall.Syscall(syscall.SYS_IOCTL, master.Fd(), tiocptyunlk, 0); e != 0 {
-		_ = master.Close()
-		return nil, nil, e
-	}
-	var adBuf [128]byte
-	if _, _, e := syscall.Syscall(syscall.SYS_IOCTL, master.Fd(), tiocptygname, uintptr(unsafe.Pointer(&adBuf[0]))); e != 0 {
-		_ = master.Close()
-		return nil, nil, e
-	}
-	n := bytes.IndexByte(adBuf[:], 0)
-	if n <= 0 {
-		_ = master.Close()
-		return nil, nil, errors.New("pty adı okunamadı")
-	}
-	ws := struct{ satir, sutun, x, y uint16 }{24, 100, 0, 0}
-	_, _, _ = syscall.Syscall(syscall.SYS_IOCTL, master.Fd(), tiocswinsz, uintptr(unsafe.Pointer(&ws)))
+	return false
+}
 
-	slave, err := os.OpenFile(string(adBuf[:n]), os.O_RDWR|syscall.O_NOCTTY, 0)
-	if err != nil {
-		_ = master.Close()
-		return nil, nil, err
+// yerelYolMu: macOS'ta ağ disklerine (/Volumes, /home autofs, /net, /Network, SMB/NFS/WebDAV)
+// ve bunlara işaret eden sembolik bağlantılara dokunulmasını 3 katmanda engeller.
+func yerelYolMu(yol string) bool {
+	if yol == "" || strings.HasPrefix(yol, "//") || strings.HasPrefix(yol, `\\`) {
+		return false
 	}
-	return master, slave, nil
+	temiz := filepath.Clean(yol)
+	if !filepath.IsAbs(temiz) {
+		abs, err := filepath.Abs(temiz)
+		if err != nil {
+			return false
+		}
+		temiz = abs
+	}
+	// Katman 1: hiçbir sistem çağrısı yapmadan sözlüksel ağ/autofs önek denetimi
+	if darwinAgOnekEngelMi(temiz) {
+		return false
+	}
+
+	// Katman 2: os.Lstat + os.Readlink ile ara ve uç sembolik bağlantıları hedefe dokunmadan çöz
+	bagSayisi := 0
+	kontrolYol := temiz
+yenidenTara:
+	parcalar := strings.Split(strings.TrimPrefix(kontrolYol, "/"), "/")
+	cur := "/"
+	sonMevcut := "/"
+	for idx, parca := range parcalar {
+		if parca == "" {
+			continue
+		}
+		if cur == "/" {
+			cur = "/" + parca
+		} else {
+			cur = cur + "/" + parca
+		}
+		if darwinAgOnekEngelMi(cur) {
+			return false
+		}
+		fi, err := os.Lstat(cur)
+		if err != nil {
+			if os.IsNotExist(err) {
+				break
+			}
+			// İzin hatası vb.: var olan ebeveyn veya bu düğüm üzerinden Statfs kontrolüne geç
+			sonMevcut = cur
+			break
+		}
+		if fi.Mode()&os.ModeSymlink != 0 {
+			bagSayisi++
+			if bagSayisi > 8 {
+				return false
+			}
+			hedef, errR := os.Readlink(cur)
+			if errR != nil || hedef == "" || strings.HasPrefix(hedef, "//") {
+				return false
+			}
+			if !filepath.IsAbs(hedef) {
+				hedef = filepath.Join(filepath.Dir(cur), hedef)
+			}
+			hedef = filepath.Clean(hedef)
+			if darwinAgOnekEngelMi(hedef) {
+				return false
+			}
+			if idx+1 < len(parcalar) {
+				kontrolYol = filepath.Join(hedef, strings.Join(parcalar[idx+1:], "/"))
+			} else {
+				kontrolYol = hedef
+			}
+			if darwinAgOnekEngelMi(kontrolYol) {
+				return false
+			}
+			goto yenidenTara
+		}
+		sonMevcut = cur
+	}
+
+	// Katman 3: en yakın var olan ata dizinde Statfs bayrak ve dosya sistemi türü denetimi
+	ata := sonMevcut
+	for adim := 0; adim < 16; adim++ {
+		if darwinAgOnekEngelMi(ata) {
+			return false
+		}
+		if _, err := os.Lstat(ata); err == nil {
+			var st syscall.Statfs_t
+			if syscall.Statfs(ata, &st) != nil {
+				return false
+			}
+			const (
+				mntRemovable   = 0x00000200
+				mntLocal       = 0x00001000
+				mntAutomounted = 0x00400000
+			)
+			if (st.Flags&mntLocal) == 0 || (st.Flags&(mntAutomounted|mntRemovable)) != 0 {
+				return false
+			}
+			var fsBuf [len(st.Fstypename)]byte
+			n := 0
+			for i := 0; i < len(st.Fstypename); i++ {
+				c := byte(st.Fstypename[i])
+				if c == 0 {
+					break
+				}
+				fsBuf[n] = c
+				n++
+			}
+			switch strings.ToLower(string(fsBuf[:n])) {
+			case "autofs", "smbfs", "nfs", "afpfs", "webdav", "cifs", "ftp":
+				return false
+			}
+			return true
+		}
+		ebeveyn := filepath.Dir(ata)
+		if ebeveyn == ata {
+			break
+		}
+		ata = ebeveyn
+	}
+	return false
 }

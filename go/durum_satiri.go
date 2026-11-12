@@ -1,3 +1,5 @@
+//go:build sag_claude || (!sag_gemini && !sag_chatgpt)
+
 package main
 
 // Claude Code durum satırı (statusLine) bağlantısı.
@@ -12,76 +14,18 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"io"
 	"os"
 	"path/filepath"
-	"runtime"
-	"sort"
-	"strconv"
 	"strings"
-	"time"
 )
 
 const (
 	durumAnahtar    = "durum-satiri"
-	limitEnYukAnah  = 30
-	limitAnahUzun   = 60
 	limitYenileSn   = 60
-	stdinSinir      = 1 << 20
-	stdinSure       = 2 * time.Second
-	oncekiSure      = 5 * time.Second
-	yedekEki        = ".token-panosu-yedek"
 	testClaudeDizin = "TOKEN_PANOSU_CLAUDE_DIZIN" // yalnızca test: ek Claude yapılandırma klasörü
 )
 
-func limitYolu() string    { return filepath.Join(dizin, "limit.json") }
-func sonLimitYolu() string { return filepath.Join(dizin, "son_limit") }
-
-type limitDosyasi struct {
-	T int64                  `json:"t"`
-	R map[string]json.Number `json:"r"`
-}
-
-// Sayısal yaprakları noktalı yolla düzleştirir
-func limitDuzlestir(on string, v any, cikti map[string]json.Number) {
-	switch x := v.(type) {
-	case json.Number:
-		if on != "" {
-			cikti[on] = x
-		}
-	case map[string]any:
-		for k, d := range x {
-			y := k
-			if on != "" {
-				y = on + "." + k
-			}
-			limitDuzlestir(y, d, cikti)
-		}
-	}
-}
-
-// Anahtarı çok uzun olanı atar, en çok 30 anahtar tutar (sıralı, tekrarlanabilir)
-func limitSinirla(m map[string]json.Number) map[string]json.Number {
-	anahtarlar := make([]string, 0, len(m))
-	for k, v := range m {
-		if len(k) == 0 || len(k) > limitAnahUzun {
-			continue
-		}
-		if _, err := v.Float64(); err != nil {
-			continue
-		}
-		anahtarlar = append(anahtarlar, k)
-	}
-	sort.Strings(anahtarlar)
-	if len(anahtarlar) > limitEnYukAnah {
-		anahtarlar = anahtarlar[:limitEnYukAnah]
-	}
-	son := make(map[string]json.Number, len(anahtarlar))
-	for _, k := range anahtarlar {
-		son[k] = m[k]
-	}
-	return son
-}
+func limitYolu() string { return filepath.Join(dizin, "limit.json") }
 
 func limitCikar(girdi []byte) map[string]json.Number {
 	d := json.NewDecoder(bytes.NewReader(girdi))
@@ -133,20 +77,6 @@ func limitYaz(simdi int64, m map[string]json.Number) {
 	_ = dosyaYaz(limitYolu(), b, 0o600)
 }
 
-func stdinOku() ([]byte, bool) {
-	tip := make(chan []byte, 1)
-	go func() {
-		b, _ := io.ReadAll(io.LimitReader(os.Stdin, stdinSinir))
-		tip <- b
-	}()
-	select {
-	case b := <-tip:
-		return b, true
-	case <-time.After(stdinSure):
-		return nil, false
-	}
-}
-
 // Çağıran Claude yapılandırma klasörü: CLAUDE_CONFIG_DIR, yoksa ~/.claude
 func cagiranClaudeDizini() string {
 	if c := os.Getenv("CLAUDE_CONFIG_DIR"); c != "" {
@@ -154,8 +84,6 @@ func cagiranClaudeDizini() string {
 	}
 	return dizinAnahtari(filepath.Join(evDizini(), ".claude"))
 }
-
-func dizinAnahtari(p string) string { return filepath.Clean(genislet(p)) }
 
 // Gizli komut: her zaman 0 ile çıkar, hata yazmaz
 func durumSatiri() {
@@ -181,27 +109,6 @@ func durumSatiri() {
 	}
 }
 
-// ---------- ayar.json ek alanları (Ayar yapısından bağımsız, bilinmeyen anahtarları korur) ----------
-
-func ayarHam() map[string]json.RawMessage {
-	m := map[string]json.RawMessage{}
-	if b, err := os.ReadFile(ayarYolu()); err == nil {
-		_ = json.Unmarshal(b, &m)
-	}
-	if m == nil {
-		m = map[string]json.RawMessage{}
-	}
-	return m
-}
-
-func ayarHamYaz(m map[string]json.RawMessage) error {
-	b, err := json.MarshalIndent(m, "", " ")
-	if err != nil {
-		return err
-	}
-	return dosyaYaz(ayarYolu(), b, 0o600)
-}
-
 func ayarOnceki(m map[string]json.RawMessage) map[string]json.RawMessage {
 	o := map[string]json.RawMessage{}
 	if r, ok := m["durum_satiri_onceki"]; ok {
@@ -216,20 +123,6 @@ func ayarKuruldu(m map[string]json.RawMessage) []string {
 		_ = json.Unmarshal(r, &l)
 	}
 	return l
-}
-
-func listedeVar(l []string, d string) bool {
-	for _, x := range l {
-		if x == d {
-			return true
-		}
-	}
-	return false
-}
-
-func hamBos(r json.RawMessage) bool {
-	s := strings.TrimSpace(string(r))
-	return s == "" || s == "null"
 }
 
 func oncekiKomut(dir string) string {
@@ -282,36 +175,6 @@ func claudeDizinleri() []string {
 		}
 	}
 	return liste
-}
-
-func komutTirnakla(yol string) string {
-	if runtime.GOOS == "windows" {
-		return `"` + yol + `"`
-	}
-	return `"` + strings.NewReplacer(`\`, `\\`, `"`, `\"`, "$", `\$`, "`", "\\`").Replace(yol) + `"`
-}
-
-func ayarlarOku(yol string) (map[string]json.RawMessage, bool, error) {
-	b, err := os.ReadFile(yol)
-	if os.IsNotExist(err) {
-		return map[string]json.RawMessage{}, false, nil
-	}
-	if err != nil {
-		return nil, false, err
-	}
-	var m map[string]json.RawMessage
-	if err := json.Unmarshal(b, &m); err != nil || m == nil {
-		return nil, true, os.ErrInvalid
-	}
-	return m, true, nil
-}
-
-func ayarlarYaz(yol string, m map[string]json.RawMessage) error {
-	b, err := json.MarshalIndent(m, "", "  ")
-	if err != nil {
-		return err
-	}
-	return dosyaYaz(yol, append(b, '\n'), 0o600)
 }
 
 // Bir klasör için durum satırını kurar. Kaydedildiyse (kuruldu listesinde) ya da zaten bizimse dokunmaz.
@@ -419,15 +282,4 @@ func durumSatiriKaldir() {
 		}
 		_ = ayarlarYaz(yol, m)
 	}
-}
-
-// ---------- gönderim eki ----------
-
-func sonLimitT() int64 {
-	b, err := os.ReadFile(sonLimitYolu())
-	if err != nil {
-		return 0
-	}
-	n, _ := strconv.ParseInt(strings.TrimSpace(string(b)), 10, 64)
-	return n
 }

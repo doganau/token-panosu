@@ -21,7 +21,7 @@ func TestMuhurCozumlemeVeTekBaytDegisimiAlgilama(t *testing.T) {
 	hedef := hedefAdi()
 
 	mac := hmac.New(sha256.New, anaBayt)
-	mac.Write([]byte("tp-muhur-k1|31|" + hedef))
+	mac.Write([]byte("tp-muhur-k1|40|" + hedef))
 	beklenenKHedef := mac.Sum(nil)
 
 	pad := []byte("0123456789abcdefFEDCBA9876543210")

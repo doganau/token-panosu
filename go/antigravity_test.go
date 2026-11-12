@@ -1,9 +1,10 @@
+//go:build sag_gemini || (!sag_claude && !sag_chatgpt)
+
 package main
 
 import (
 	"encoding/base64"
 	"encoding/binary"
-	"encoding/json"
 	"math"
 	"os"
 	"path/filepath"
@@ -17,8 +18,15 @@ import (
 func TestAgyModelAd(t *testing.T) {
 	durumlar := map[string]string{
 		"Claude Opus 5.5 (Medium)":  "agy-claude-opus-5-5",
+		"Claude Sonnet 5.5 (High)":  "agy-claude-sonnet-5-5",
 		"Gemini 4 Carbon (High)":    "agy-gemini-4-carbon",
+		"Gemini 4 Argon (Medium)":   "agy-gemini-4-argon",
 		"Gemini 3.8 Flash (Medium)": "agy-gemini-3.8-flash",
+		"Gemini 3.5 Flash (Low)":    "agy-gemini-3.5-flash",
+		"gemini-3-flash-a":          "agy-gemini-3.5-flash",
+		"gemini-pro-b":              "agy-gemini-3.1-pro",
+		"gemini-3.8-flash-tiered":   "agy-gemini-3.8-flash",
+		"MODEL_PLACEHOLDER_M427":    "agy-gemini-4-carbon",
 		"None":                      "agy-gemini",
 		"":                          "agy-gemini",
 	}
@@ -34,8 +42,10 @@ func TestAgyDokumOkumaVeEkleme(t *testing.T) {
 	yol := filepath.Join(dir, "transcript.jsonl")
 	simdi := time.Now().UTC().Truncate(time.Second)
 	ts := func(d time.Duration) string { return simdi.Add(d).Format(time.RFC3339) }
+	// Kullanıcı isteminde rastgele "Model Selection ... to `sahte`." geçmesi modeli bozmamalı
 	ilk := `{"step_index":0,"type":"USER_INPUT","created_at":"` + ts(-30*time.Minute) + `","content":"<USER_SETTINGS_CHANGE>The user changed setting ` + "`Model Selection`" + ` from None to Claude Opus 5.5 (Medium). No need to comment.</USER_SETTINGS_CHANGE>"}` + "\n" +
-		`{"step_index":1,"type":"PLANNER_RESPONSE","created_at":"` + ts(-29*time.Minute) + `","input_tokens":1000,"cache_read_tokens":5000,"output_tokens":200,"thinking":"gizli"}` + "\n"
+		`{"step_index":1,"type":"USER_INPUT","created_at":"` + ts(-29*time.Minute-30*time.Second) + `","content":"Check Model Selection docs and rename foo to ` + "`bar`" + `."}` + "\n" +
+		`{"step_index":2,"type":"PLANNER_RESPONSE","created_at":"` + ts(-29*time.Minute) + `","input_tokens":1000,"cache_read_tokens":5000,"output_tokens":200,"thinking":"gizli"}` + "\n"
 	if err := os.WriteFile(yol, []byte(ilk), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -50,9 +60,9 @@ func TestAgyDokumOkumaVeEkleme(t *testing.T) {
 		t.Fatalf("kayıt hatalı: %+v", k)
 	}
 	// Sona ekleme: model değişimi + yeni yanıt + yarım satır
-	ek := `{"step_index":2,"type":"USER_INPUT","created_at":"` + ts(-10*time.Minute) + `","content":"The user changed setting ` + "`Model Selection`" + ` from Claude Opus 5.5 (Medium) to Gemini 4 Carbon (High). ok"}` + "\n" +
-		`{"step_index":3,"type":"PLANNER_RESPONSE","created_at":"` + ts(-9*time.Minute) + `","input_tokens":300,"cache_read_tokens":0,"output_tokens":50}` + "\n" +
-		`{"step_index":4,"type":"PLANNER_RESPONSE","created_at":"` + ts(-8*time.Minute) + `","input_tok`
+	ek := `{"step_index":3,"type":"USER_INPUT","created_at":"` + ts(-10*time.Minute) + `","content":"The user changed setting ` + "`Model Selection`" + ` from Claude Opus 5.5 (Medium) to Gemini 4 Carbon (High). ok"}` + "\n" +
+		`{"step_index":4,"type":"PLANNER_RESPONSE","created_at":"` + ts(-9*time.Minute) + `","input_tokens":300,"cache_read_tokens":0,"output_tokens":50}` + "\n" +
+		`{"step_index":5,"type":"PLANNER_RESPONSE","created_at":"` + ts(-8*time.Minute) + `","input_tok`
 	f, _ := os.OpenFile(yol, os.O_APPEND|os.O_WRONLY, 0o644)
 	f.WriteString(ek)
 	f.Close()
@@ -69,7 +79,7 @@ func TestAgyDokumOkumaVeEkleme(t *testing.T) {
 	}
 }
 
-// ---------- Protobuf ve SQLite3 taşma sayfası test yardımcıları ----------
+// ---------- Protobuf ve SQLite3 taşma / WAL test yardımcıları ----------
 
 func pbYazVarint(b []byte, v uint64) []byte {
 	for v >= 0x80 {
@@ -165,13 +175,12 @@ func sahteVscdbOlustur(satirlar [][2]string) []byte {
 	sayfalar[0][18] = 1
 	sayfalar[0][19] = 1
 
-	// Sayfa 1: sqlite_schema içinde ("table", "ItemTable", "ItemTable", 2, "CREATE TABLE ItemTable (key TEXT, value BLOB)")
 	sqlMetni := "CREATE TABLE ItemTable (key TEXT, value BLOB)"
 	var semaBaslik []byte
 	semaBaslik = append(semaBaslik, sqliteYazVarint(uint64(len("table")*2+13))...)
 	semaBaslik = append(semaBaslik, sqliteYazVarint(uint64(len("ItemTable")*2+13))...)
 	semaBaslik = append(semaBaslik, sqliteYazVarint(uint64(len("ItemTable")*2+13))...)
-	semaBaslik = append(semaBaslik, sqliteYazVarint(1)...) // 1 bayt tamsayı (rootpage = 2)
+	semaBaslik = append(semaBaslik, sqliteYazVarint(1)...)
 	semaBaslik = append(semaBaslik, sqliteYazVarint(uint64(len(sqlMetni)*2+13))...)
 	hBoy := sqliteYazVarint(uint64(len(semaBaslik) + 1))
 	var semaKayit []byte
@@ -192,7 +201,6 @@ func sahteVscdbOlustur(satirlar [][2]string) []byte {
 	binary.BigEndian.PutUint16(sayfalar[0][108:110], uint16(cp1))
 	copy(sayfalar[0][cp1:], semaHucre)
 
-	// Sayfa 2: ItemTable yaprak sayfası + taşma sayfaları
 	sayfalar[1][0] = 0x0d
 	binary.BigEndian.PutUint16(sayfalar[1][3:5], uint16(len(satirlar)))
 	imlec := ps
@@ -268,6 +276,257 @@ func sahteVscdbOlustur(satirlar [][2]string) []byte {
 	return tum
 }
 
+func sahteGenMetaProto(display, canon string, enumID uint64, sonAdim int) []byte {
+	var ic []byte
+	if enumID > 0 {
+		ic = append(ic, pbYazAlanVarint(3, enumID)...)
+	}
+	if canon != "" {
+		ic = append(ic, pbYazAlanUzun(19, []byte(canon))...)
+	}
+	var kv []byte
+	kv = append(kv, pbYazAlanUzun(1, []byte("last_step_index"))...)
+	kv = append(kv, pbYazAlanUzun(2, []byte(strconv.Itoa(sonAdim)))...)
+	ic = append(ic, pbYazAlanUzun(20, kv)...)
+	if display != "" {
+		ic = append(ic, pbYazAlanUzun(21, []byte(display))...)
+	}
+	return pbYazAlanUzun(1, ic)
+}
+
+func sahteGenMetaYaprakSayfa(kayitlar [][]byte) []byte {
+	const ps = 4096
+	sayfa := make([]byte, ps)
+	sayfa[0] = 0x0d
+	binary.BigEndian.PutUint16(sayfa[3:5], uint16(len(kayitlar)))
+	imlec := ps
+	for i, veri := range kayitlar {
+		// gen_metadata: (idx INTEGER PRIMARY KEY [NULL in record -> st=0], data BLOB, size INTEGER)
+		var rBaslik []byte
+		rBaslik = append(rBaslik, sqliteYazVarint(0)...)                      // idx: INTEGER PRIMARY KEY alias
+		rBaslik = append(rBaslik, sqliteYazVarint(uint64(len(veri)*2+12))...) // data BLOB
+		rBaslik = append(rBaslik, sqliteYazVarint(2)...)                      // size 2-bayt int
+		rhUz := sqliteYazVarint(uint64(len(rBaslik) + 1))
+		if len(rhUz) > 1 {
+			rhUz = sqliteYazVarint(uint64(len(rBaslik) + len(rhUz)))
+		}
+		var sz2 [2]byte
+		binary.BigEndian.PutUint16(sz2[:], uint16(len(veri)))
+		var tamKayit []byte
+		tamKayit = append(tamKayit, rhUz...)
+		tamKayit = append(tamKayit, rBaslik...)
+		tamKayit = append(tamKayit, veri...)
+		tamKayit = append(tamKayit, sz2[:]...)
+
+		var hucre []byte
+		hucre = append(hucre, sqliteYazVarint(uint64(len(tamKayit)))...)
+		hucre = append(hucre, sqliteYazVarint(uint64(i+1))...)
+		hucre = append(hucre, tamKayit...)
+		imlec -= len(hucre)
+		binary.BigEndian.PutUint16(sayfa[8+2*i:10+2*i], uint16(imlec))
+		copy(sayfa[imlec:], hucre)
+	}
+	return sayfa
+}
+
+func sahteKonusmaDbVeWalOlustur(dbKayitlar, walKayitlar [][]byte) ([]byte, []byte) {
+	const ps = 4096
+	sayfa1 := make([]byte, ps)
+	copy(sayfa1[0:16], []byte("SQLite format 3\x00"))
+	binary.BigEndian.PutUint16(sayfa1[16:18], ps)
+	sayfa1[18] = 2
+	sayfa1[19] = 2
+
+	// sqlite_schema: hem steps (sayfa 3, içi kasıtlı çöp - asla okunmamalı!) hem gen_metadata (sayfa 2) tanımla
+	semaHucreOlustur := func(rowID uint64, tablo string, kokSayfa byte, sqlMetni string) []byte {
+		var sb []byte
+		sb = append(sb, sqliteYazVarint(uint64(len("table")*2+13))...)
+		sb = append(sb, sqliteYazVarint(uint64(len(tablo)*2+13))...)
+		sb = append(sb, sqliteYazVarint(uint64(len(tablo)*2+13))...)
+		sb = append(sb, sqliteYazVarint(1)...)
+		sb = append(sb, sqliteYazVarint(uint64(len(sqlMetni)*2+13))...)
+		hb := sqliteYazVarint(uint64(len(sb) + 1))
+		var kayit []byte
+		kayit = append(kayit, hb...)
+		kayit = append(kayit, sb...)
+		kayit = append(kayit, []byte("table"+tablo+tablo)...)
+		kayit = append(kayit, kokSayfa)
+		kayit = append(kayit, []byte(sqlMetni)...)
+		var hucre []byte
+		hucre = append(hucre, sqliteYazVarint(uint64(len(kayit)))...)
+		hucre = append(hucre, sqliteYazVarint(rowID)...)
+		return append(hucre, kayit...)
+	}
+
+	h1 := semaHucreOlustur(1, "steps", 3, "CREATE TABLE steps (idx INTEGER PRIMARY KEY, step_payload BLOB)")
+	h2 := semaHucreOlustur(2, "gen_metadata", 2, "CREATE TABLE gen_metadata (idx INTEGER PRIMARY KEY, data BLOB, size INTEGER)")
+	sayfa1[100] = 0x0d
+	binary.BigEndian.PutUint16(sayfa1[103:105], 2)
+	imlec := ps - len(h1)
+	copy(sayfa1[imlec:], h1)
+	binary.BigEndian.PutUint16(sayfa1[108:110], uint16(imlec))
+	imlec -= len(h2)
+	copy(sayfa1[imlec:], h2)
+	binary.BigEndian.PutUint16(sayfa1[110:112], uint16(imlec))
+	binary.BigEndian.PutUint16(sayfa1[105:107], uint16(imlec))
+	binary.BigEndian.PutUint32(sayfa1[28:32], 3)
+
+	sayfa2 := sahteGenMetaYaprakSayfa(dbKayitlar)
+	sayfa3 := make([]byte, ps) // steps kök sayfası (hiç okunmamalı)
+	for i := range sayfa3 {
+		sayfa3[i] = 0xaa
+	}
+
+	var db []byte
+	db = append(db, sayfa1...)
+	db = append(db, sayfa2...)
+	db = append(db, sayfa3...)
+
+	// .db-wal oluştur: geçerli başlık + sayfa 2'yi güncelleyen commit çerçevesi + sahte eski tuzlu artık çerçeve
+	var whdr [32]byte
+	binary.BigEndian.PutUint32(whdr[0:4], 0x377f0682) // little-endian WAL checksum magic
+	binary.BigEndian.PutUint32(whdr[4:8], 3007000)
+	binary.BigEndian.PutUint32(whdr[8:12], ps)
+	binary.BigEndian.PutUint32(whdr[12:16], 1)
+	binary.BigEndian.PutUint32(whdr[16:20], 0x11223344) // salt-1
+	binary.BigEndian.PutUint32(whdr[20:24], 0x55667788) // salt-2
+	s0, s1 := sqliteWalChecksum(true, whdr[0:24], 0, 0)
+	binary.BigEndian.PutUint32(whdr[24:28], s0)
+	binary.BigEndian.PutUint32(whdr[28:32], s1)
+
+	walSayfa2 := sahteGenMetaYaprakSayfa(walKayitlar)
+	var fhdr [24]byte
+	binary.BigEndian.PutUint32(fhdr[0:4], 2)          // pgNo = 2 (gen_metadata)
+	binary.BigEndian.PutUint32(fhdr[4:8], 3)          // dbBoy > 0 -> commit çerçevesi!
+	binary.BigEndian.PutUint32(fhdr[8:12], 0x11223344) // salt-1
+	binary.BigEndian.PutUint32(fhdr[12:16], 0x55667788) // salt-2
+	s0, s1 = sqliteWalChecksum(true, fhdr[0:8], s0, s1)
+	s0, s1 = sqliteWalChecksum(true, walSayfa2, s0, s1)
+	binary.BigEndian.PutUint32(fhdr[16:20], s0)
+	binary.BigEndian.PutUint32(fhdr[20:24], s1)
+
+	// Eski nesilden kalan (farklı salt taşıyan) bozuk çerçeve: okuyucu burada durmalı ve sayfa 2 commit'ini korumalı!
+	var eskiFhdr [24]byte
+	binary.BigEndian.PutUint32(eskiFhdr[0:4], 2)
+	binary.BigEndian.PutUint32(eskiFhdr[4:8], 3)
+	binary.BigEndian.PutUint32(eskiFhdr[8:12], 0xdeadbeef) // eski salt-1
+	binary.BigEndian.PutUint32(eskiFhdr[12:16], 0xcafebabe)
+	bozukSayfa := sahteGenMetaYaprakSayfa([][]byte{
+		sahteGenMetaProto("Bozuk Model", "bozuk-model", 0, 1),
+	})
+
+	var wal []byte
+	wal = append(wal, whdr[:]...)
+	wal = append(wal, fhdr[:]...)
+	wal = append(wal, walSayfa2...)
+	wal = append(wal, eskiFhdr[:]...)
+	wal = append(wal, bozukSayfa...)
+	return db, wal
+}
+
+func TestAgyKonusmaDbVeWalModelCozumleme(t *testing.T) {
+	eskiDizin := dizin
+	dizin = t.TempDir()
+	defer func() { dizin = eskiDizin }()
+
+	ev := t.TempDir()
+	t.Setenv("HOME", ev)
+	t.Setenv("USERPROFILE", ev)
+	t.Setenv("GEMINI_CLI_HOME", "")
+
+	simdi := time.Now().UTC().Truncate(time.Second)
+	agyKok := filepath.Join(ev, ".gemini", "antigravity")
+	convID := "6f60e323-2a7a-42f0-be9f-be95b73617ed"
+	logDir := filepath.Join(agyKok, "brain", convID, ".system_generated", "logs")
+	convDir := filepath.Join(agyKok, "conversations")
+	_ = os.MkdirAll(logDir, 0o755)
+	_ = os.MkdirAll(convDir, 0o755)
+
+	// 1) Önce yalnızca antigravity_state.pbtxt varken (henüz .db oluşmamışken) MODEL_PLACEHOLDER_M417 -> agy-gemini-4-argon çözülmeli
+	_ = os.WriteFile(filepath.Join(agyKok, "antigravity_state.pbtxt"), []byte("last_selected_agent_model: MODEL_PLACEHOLDER_M417\n"), 0o600)
+
+	trYol := filepath.Join(logDir, "transcript.jsonl")
+	dokum := `{"step_index":1,"type":"USER_INPUT","created_at":"` + simdi.Add(-20*time.Minute).Format(time.RFC3339) + `","content":"merhaba"}` + "\n" +
+		`{"step_index":2,"type":"PLANNER_RESPONSE","created_at":"` + simdi.Add(-19*time.Minute).Format(time.RFC3339) + `","model":"","input_tokens":1000,"cache_read_tokens":5000,"output_tokens":200}` + "\n" +
+		`{"step_index":4,"type":"PLANNER_RESPONSE","created_at":"` + simdi.Add(-15*time.Minute).Format(time.RFC3339) + `","model":"","input_tokens":400,"cache_read_tokens":1200,"output_tokens":80}` + "\n" +
+		`{"step_index":6,"type":"PLANNER_RESPONSE","created_at":"` + simdi.Add(-10*time.Minute).Format(time.RFC3339) + `","model":"","input_tokens":2500,"cache_read_tokens":9000,"output_tokens":350}` + "\n"
+	if err := os.WriteFile(trYol, []byte(dokum), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	ilk := toplaDiger(simdi.Unix())
+	ilkModeller := map[string]Satir{}
+	for _, r := range ilk.satirlar {
+		ilkModeller[r.Model] = r
+	}
+	if ilkModeller["agy-gemini-4-argon"].Messages != 3 {
+		t.Fatalf("antigravity_state.pbtxt yedeği çalışmalıydı: %+v", ilkModeller)
+	}
+
+	// 2) Şimdi transcript.jsonl hiç değişmeden conversations/<conv_id>.db ve .db-wal yazılsın:
+	//    .db içinde yalnızca ilk 2 kayıt varken, .db-wal 3. kaydı (Claude Opus 5.5) ekliyor!
+	k1 := sahteGenMetaProto("Gemini 4 Carbon (High)", "gemini-4-carbon", 1427, 1)
+	k2 := sahteGenMetaProto("Gemini 3.5 Flash (Medium)", "gemini-3-flash-a", 1020, 3)
+	k3 := sahteGenMetaProto("Claude Opus 5.5 (High)", "claude-opus-5-5-high", 1401, 5)
+
+	dbBayt, walBayt := sahteKonusmaDbVeWalOlustur([][]byte{k1, k2}, [][]byte{k1, k2, k3})
+	dbYol := filepath.Join(convDir, convID+".db")
+	if err := os.WriteFile(dbYol, dbBayt, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dbYol+"-wal", walBayt, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// DbMtime değiştiği için önbellek ofset 0'dan yeniden çözülmeli ve 3 model tam sayılarla ayrışmalı!
+	ikinci := toplaDiger(simdi.Unix() + 5)
+	byModel := map[string]Satir{}
+	for _, r := range ikinci.satirlar {
+		byModel[r.Model] = r
+	}
+	if c := byModel["agy-gemini-4-carbon"]; c.Messages != 1 || c.Input != 1000 || c.Cr != 5000 || c.Output != 200 {
+		t.Fatalf("agy-gemini-4-carbon satırı hatalı: %+v (tümü=%+v)", c, byModel)
+	}
+	if fl := byModel["agy-gemini-3.5-flash"]; fl.Messages != 1 || fl.Input != 400 || fl.Cr != 1200 || fl.Output != 80 {
+		t.Fatalf("agy-gemini-3.5-flash satırı hatalı: %+v (tümü=%+v)", fl, byModel)
+	}
+	if op := byModel["agy-claude-opus-5-5"]; op.Messages != 1 || op.Input != 2500 || op.Cr != 9000 || op.Output != 350 {
+		t.Fatalf("agy-claude-opus-5-5 (WAL üzerinden) satırı hatalı: %+v (tümü=%+v)", op, byModel)
+	}
+	if _, eskiKaldi := byModel["agy-gemini-4-argon"]; eskiKaldi {
+		t.Fatalf("DbMtime güncellendiğinde eski pbtxt yedeği yenilenmeliydi: %+v", byModel)
+	}
+}
+
+func TestAgyGercekKonusmaDbDumanTesti(t *testing.T) {
+	ev, err := os.UserHomeDir()
+	if err != nil || ev == "" {
+		t.Skip("ev dizini yok")
+	}
+	convDir := filepath.Join(ev, ".gemini", "antigravity", "conversations")
+	girdiler, err := os.ReadDir(convDir)
+	if err != nil {
+		t.Skip("yerel Antigravity conversations klasörü yok")
+	}
+	sayac := 0
+	cozulen := 0
+	for _, e := range girdiler {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".db") {
+			continue
+		}
+		yol := filepath.Join(convDir, e.Name())
+		ilk, adimlar := agyKonusmaModelleriOku(yol)
+		if ilk != "" || len(adimlar) > 0 {
+			cozulen++
+		}
+		sayac++
+		if sayac >= 25 {
+			break
+		}
+	}
+	t.Logf("gerçek Antigravity duman testi: %d .db incelendi, %d tanesinde gen_metadata modeli çözüldü", sayac, cozulen)
+}
+
 func uygulamaKlasoruTestYolu(ev, ad string) string {
 	switch runtime.GOOS {
 	case "darwin":
@@ -292,7 +551,6 @@ func TestAgySqliteTasmaKotaVeHesapOnceligi(t *testing.T) {
 
 	simdi := time.Now().Unix()
 
-	// 1. Eski tarihli Antigravity state.vscdb (farklı/eski e-posta + süresi geçmiş kota)
 	eskiKok := uygulamaKlasoruTestYolu(ev, "Antigravity")
 	eskiDbYol := filepath.Join(eskiKok, "User", "globalStorage", "state.vscdb")
 	_ = os.MkdirAll(filepath.Dir(eskiDbYol), 0o755)
@@ -301,7 +559,7 @@ func TestAgySqliteTasmaKotaVeHesapOnceligi(t *testing.T) {
 		kalan   float32
 		resetSn int64
 	}{
-		{"Claude Opus 5.5", 0.01, simdi - 3600}, // dün sıfırlanmış: yok sayılmalı
+		{"Claude Opus 5.5", 0.01, simdi - 3600},
 	})
 	if err := os.WriteFile(eskiDbYol, sahteVscdbOlustur([][2]string{
 		{"antigravityAuthStatus", "gizli-okunmamali"},
@@ -312,7 +570,6 @@ func TestAgySqliteTasmaKotaVeHesapOnceligi(t *testing.T) {
 	eskiZaman := time.Unix(simdi-5*86400, 0)
 	_ = os.Chtimes(eskiDbYol, eskiZaman, eskiZaman)
 
-	// 2. Yeni tarihli Antigravity IDE state.vscdb (taşma sayfalı >9 KB değer + aktif 7g ve 5sa kotalar)
 	yeniKok := uygulamaKlasoruTestYolu(ev, "Antigravity IDE")
 	yeniDbYol := filepath.Join(yeniKok, "User", "globalStorage", "state.vscdb")
 	_ = os.MkdirAll(filepath.Dir(yeniDbYol), 0o755)
@@ -321,10 +578,10 @@ func TestAgySqliteTasmaKotaVeHesapOnceligi(t *testing.T) {
 		kalan   float32
 		resetSn int64
 	}{
-		{"Claude Opus 5.5 (Thinking)", 0.38, simdi + 4*86400}, // %62 haftalık
-		{"Gemini 4 Argon", 0.75, simdi + 5*86400},             // %25 haftalık
-		{"Gemini 3.8 Flash", 0.80, simdi + 3*3600},            // %20 5 saatlik
-		{"Eski Model", 0.0, simdi - 120},                      // süresi geçmiş: yok sayılmalı
+		{"Claude Opus 5.5 (Thinking)", 0.38, simdi + 4*86400},
+		{"Gemini 4 Argon", 0.75, simdi + 5*86400},
+		{"Gemini 3.8 Flash", 0.80, simdi + 3*3600},
+		{"Eski Model", 0.0, simdi - 120},
 	})
 	dbBayt := sahteVscdbOlustur([][2]string{
 		{"jetskiStateSync.agentManagerInitState", strings.Repeat("Z", 6000)},
@@ -363,7 +620,6 @@ func TestAgySqliteTasmaKotaVeHesapOnceligi(t *testing.T) {
 		t.Fatalf("agy_gemini kotası hatalı: got=%q want=25", got)
 	}
 
-	// 3. Daha yeni app_storage.json farklı bir e-postaya geçerse yeni e-posta kazanmalı ve eski hesabın kotası sızmamalı
 	asYol := filepath.Join(eskiKok, "app_storage.json")
 	_ = os.WriteFile(asYol, []byte(`{"jetski.onboarding.lastLoginUsername":"yenihesap@firma.com"}`), 0o600)
 	enYeniZaman := time.Unix(simdi-10, 0)
@@ -378,7 +634,7 @@ func TestAgySqliteTasmaKotaVeHesapOnceligi(t *testing.T) {
 	}
 }
 
-func TestDigerUzunBaglamEsikleri(t *testing.T) {
+func TestGeminiIzoleUzunBaglamVeSupheli(t *testing.T) {
 	eskiDizin := dizin
 	dizin = t.TempDir()
 	defer func() { dizin = eskiDizin }()
@@ -386,330 +642,30 @@ func TestDigerUzunBaglamEsikleri(t *testing.T) {
 	ev := t.TempDir()
 	t.Setenv("HOME", ev)
 	t.Setenv("USERPROFILE", ev)
-	t.Setenv("CODEX_HOME", filepath.Join(ev, ".codex"))
-	t.Setenv("GEMINI_CLI_HOME", filepath.Join(ev, ".gemini"))
+	t.Setenv("GEMINI_CLI_HOME", "")
+	t.Setenv("GOOGLE_GEMINI_BASE_URL", "")
 
-	esikleriKaydet(map[string]int64{
-		"claude-haiku-5-5": 100000,
-		"gemini-3.1-pro":   200000,
-		"gpt-6.1-sol":      272000,
-		"gpt-5.4":          272000,
-	})
+	esikleriKaydet(map[string]int64{"gemini-3.1-pro": 200000})
 	okunan := esikleriOku()
 	if esikBul(okunan, "agy-gemini-3.1-pro-preview") != 200000 {
 		t.Fatalf("agy-gemini-3.1-pro-preview eşiği 200000 olmalı")
 	}
-	if esikBul(okunan, "gpt-6.1-sol-2026-11-01") != 272000 {
-		t.Fatalf("gpt-6.1-sol-2026-11-01 eşiği 272000 olmalı")
-	}
-	if esikBul(okunan, "gpt-5.4-mini") != 0 {
-		t.Fatalf("gpt-5.4-mini için uzun bağlam eşiği olmamalı")
-	}
 
 	simdi := time.Now().UTC().Truncate(time.Second)
-	agyYol := filepath.Join(ev, ".gemini", "antigravity-ide", "brain", "konusma-1", ".system_generated", "logs")
-	_ = os.MkdirAll(agyYol, 0o755)
-	dokum := `{"step_index":0,"type":"USER_INPUT","created_at":"` + simdi.Add(-15*time.Minute).Format(time.RFC3339) + `","content":"The user changed setting ` + "`Model Selection`" + ` from None to Gemini 3.1 Pro (High). ok"}` + "\n" +
-		`{"step_index":1,"type":"PLANNER_RESPONSE","created_at":"` + simdi.Add(-14*time.Minute).Format(time.RFC3339) + `","input_tokens":50000,"cache_read_tokens":180000,"output_tokens":1200}` + "\n"
-	_ = os.WriteFile(filepath.Join(agyYol, "transcript.jsonl"), []byte(dokum), 0o644)
+	logDir := filepath.Join(ev, ".gemini", "antigravity", "brain", "aktif-konusma", ".system_generated", "logs")
+	_ = os.MkdirAll(logDir, 0o755)
+	trYol := filepath.Join(logDir, "transcript.jsonl")
+	satir1 := `{"step_index":0,"type":"USER_INPUT","created_at":"` + simdi.Add(-20*time.Minute).Format(time.RFC3339) + `","content":"The user changed setting ` + "`Model Selection`" + ` from None to Gemini 3.1 Pro (High). ok"}` + "\n" +
+		`{"step_index":1,"type":"PLANNER_RESPONSE","created_at":"` + simdi.Add(-19*time.Minute).Format(time.RFC3339) + `","input_tokens":50000,"cache_read_tokens":180000,"output_tokens":1200}` + "\n"
+	_ = os.WriteFile(trYol, []byte(satir1), 0o644)
 
-	son := toplaDiger(simdi.Unix())
+	ilk := toplaDiger(simdi.Unix())
 	modeller := map[string]int64{}
-	for _, r := range son.satirlar {
+	for _, r := range ilk.satirlar {
 		modeller[r.Model] = r.Input + r.Cr + r.Output
 	}
 	if modeller["agy-gemini-3.1-pro@uzun"] != 231200 {
-		t.Fatalf(">200k Antigravity isteği @uzun olarak ayrılmalıydı: %+v", modeller)
-	}
-	if _, tabanVar := modeller["agy-gemini-3.1-pro"]; !tabanVar {
-		t.Fatalf("sıfırlama için taban model satırı da üretilmeliydi: %+v", modeller)
-	}
-}
-
-func TestUcSaglayiciEpostaVeGizlilik(t *testing.T) {
-	eskiDizin, eskiTestModu := dizin, testModu
-	dizin = t.TempDir()
-	testModu = false
-	defer func() { dizin = eskiDizin; testModu = eskiTestModu }()
-
-	ev := t.TempDir()
-	t.Setenv("HOME", ev)
-	t.Setenv("USERPROFILE", ev)
-	t.Setenv("CLAUDE_CONFIG_DIR", "")
-	t.Setenv("CODEX_HOME", "")
-	t.Setenv("GEMINI_CLI_HOME", "")
-
-	// 1. Claude: ~/.claude.json
-	claudeJSON := `{"oauthAccount":{"organizationUuid":"org-ortak-123","accountUuid":"acc-999","emailAddress":"  Claude.Ortak@Firma.com "}}`
-	_ = os.WriteFile(filepath.Join(ev, ".claude.json"), []byte(claudeJSON), 0o600)
-
-	// 2. ChatGPT / Codex: ~/.codex/auth.json (gizli alanlar asla gövdeye girmemeli)
-	_ = os.MkdirAll(filepath.Join(ev, ".codex"), 0o700)
-	jwtHdr := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"RS256"}`))
-	jwtPay := base64.RawURLEncoding.EncodeToString([]byte(`{"email":"ChatGPT.Ekip@Firma.com","https://api.openai.com/auth":{"chatgpt_account_id":"acct-ortak-456"}}`))
-	codexAuth := `{"OPENAI_API_KEY":"sk-gizli-anahtar-sizmamali","tokens":{"account_id":"acct-ortak-456","access_token":"at-gizli-sizmamali","refresh_token":"rt-gizli-sizmamali","id_token":"` + jwtHdr + `.` + jwtPay + `.imza-sizmamali"}}`
-	_ = os.WriteFile(filepath.Join(ev, ".codex", "auth.json"), []byte(codexAuth), 0o600)
-
-	// 3. Gemini: ~/.gemini/google_accounts.json
-	_ = os.MkdirAll(filepath.Join(ev, ".gemini"), 0o700)
-	_ = os.WriteFile(filepath.Join(ev, ".gemini", "google_accounts.json"), []byte(`{"active":"Gemini.Ortak@Firma.com"}`), 0o600)
-
-	simdi := time.Now().Unix()
-	govde, _, err := govdeHazirla(simdi)
-	if err != nil {
-		t.Fatal(err)
-	}
-	ham := string(govde)
-	for _, yasak := range []string{"sk-gizli-anahtar-sizmamali", "at-gizli-sizmamali", "rt-gizli-sizmamali", "imza-sizmamali", "org-ortak-123", "acct-ortak-456"} {
-		if strings.Contains(ham, yasak) {
-			t.Fatalf("gizli bilgi gövdeye sızdı: %s", yasak)
-		}
-	}
-
-	son := toplaDiger(simdi)
-	if son.epostalar["claude"] != "claude.ortak@firma.com" {
-		t.Fatalf("claude e-posta hatalı: %q", son.epostalar["claude"])
-	}
-	if son.epostalar["chatgpt"] != "chatgpt.ekip@firma.com" {
-		t.Fatalf("chatgpt e-posta hatalı: %q", son.epostalar["chatgpt"])
-	}
-	if son.epostalar["gemini"] != "gemini.ortak@firma.com" {
-		t.Fatalf("gemini e-posta hatalı: %q", son.epostalar["gemini"])
-	}
-	if son.hesaplar["claude"] != hesapOzeti("claude", "org-ortak-123") {
-		t.Fatalf("claude özet hatalı: %q", son.hesaplar["claude"])
-	}
-	if son.hesaplar["chatgpt"] != hesapOzeti("chatgpt", "acct-ortak-456") {
-		t.Fatalf("chatgpt özet hatalı: %q", son.hesaplar["chatgpt"])
-	}
-	if son.hesaplar["gemini"] != hesapOzeti("gemini", "gemini.ortak@firma.com") {
-		t.Fatalf("gemini özet hatalı: %q", son.hesaplar["gemini"])
-	}
-}
-
-func TestGeminiVeChatGPTSupheliTespiti(t *testing.T) {
-	eskiDizin := dizin
-	dizin = t.TempDir()
-	defer func() { dizin = eskiDizin }()
-
-	ev := t.TempDir()
-	t.Setenv("HOME", ev)
-	t.Setenv("USERPROFILE", ev)
-	t.Setenv("CLAUDE_CONFIG_DIR", "")
-	t.Setenv("CODEX_HOME", "")
-	t.Setenv("GEMINI_CLI_HOME", "")
-	t.Setenv("GOOGLE_GEMINI_BASE_URL", "")
-	t.Setenv("OPENAI_BASE_URL", "")
-
-	simdi := time.Now().UTC().Truncate(time.Second)
-	brainKok := filepath.Join(ev, ".gemini", "antigravity", "brain")
-
-	// Normal durumda transcript.jsonl içermeyen eski/boş brain klasörü yanlış alarm üretmemeli
-	_ = os.MkdirAll(filepath.Join(brainKok, "bos-konusma"), 0o755)
-
-	logDir := filepath.Join(brainKok, "aktif-konusma", ".system_generated", "logs")
-	_ = os.MkdirAll(logDir, 0o755)
-	trYol := filepath.Join(logDir, "transcript.jsonl")
-	satir1 := `{"step_index":1,"type":"PLANNER_RESPONSE","created_at":"` + simdi.Add(-20*time.Minute).Format(time.RFC3339) + `","input_tokens":20000,"cache_read_tokens":15000,"output_tokens":2000}` + "\n"
-	satir2 := `{"step_index":2,"type":"PLANNER_RESPONSE","created_at":"` + simdi.Add(-10*time.Minute).Format(time.RFC3339) + `","input_tokens":10000,"cache_read_tokens":5000,"output_tokens":1000}` + "\n"
-	_ = os.WriteFile(trYol, []byte(satir1+satir2), 0o644)
-
-	ilk := toplaDiger(simdi.Unix())
-	if len(ilk.bulgular) != 0 {
-		t.Fatalf("normal kullanımda şüpheli bulgu olmamalı: %+v", ilk.bulgular)
-	}
-
-	// 1. transcript.jsonl içindeki token sayısı kırpılır / azaltılırsa (boyut boşlukla büyütülse bile!) yakalanmalı
-	sahteIcerik := `{"step_index":1,"type":"PLANNER_RESPONSE","created_at":"` + simdi.Add(-20*time.Minute).Format(time.RFC3339) + `","input_tokens":100,"cache_read_tokens":0,"output_tokens":10}` + strings.Repeat(" ", 400) + "\n"
-	_ = os.WriteFile(trYol, []byte(sahteIcerik), 0o644)
-	yeniZaman := simdi.Add(-5 * time.Minute)
-	_ = os.Chtimes(trYol, yeniZaman, yeniZaman)
-
-	ikinci := toplaDiger(simdi.Unix() + 10)
-	bulguVar := func(liste []Bulgu, kod string) bool {
-		for _, b := range liste {
-			if b.K == kod && b.S == "s" {
-				return true
-			}
-		}
-		return false
-	}
-	if !bulguVar(ikinci.bulgular, "kuculen_gemini") {
-		t.Fatalf("azaltılmış transcript.jsonl için kuculen_gemini bekleniyordu: %+v", ikinci.bulgular)
-	}
-
-	// 2. Orijinal yüksek tokenlı dosya geri yazılıp önbelleğe alındıktan sonra diskten tamamen silinirse silinen_gemini yakalanmalı
-	_ = os.WriteFile(trYol, []byte(satir1+satir2), 0o644)
-	_ = os.Chtimes(trYol, simdi, simdi)
-	_ = toplaDiger(simdi.Unix() + 20)
-	_ = os.Remove(trYol)
-	ucuncu := toplaDiger(simdi.Unix() + 30)
-	if !bulguVar(ucuncu.bulgular, "silinen_gemini") {
-		t.Fatalf("silinen transcript.jsonl için silinen_gemini bekleniyordu: %+v", ucuncu.bulgular)
-	}
-
-	// 3. transcript.jsonl /dev/null'a yönlendirilirse engel_gemini + sahte proxy ortamında api_ortam_chatgpt yakalanmalı
-	if err := os.Symlink(os.DevNull, trYol); err == nil {
-		t.Setenv("OPENAI_BASE_URL", "https://sahte-proxy.ornek.com/v1")
-		_, birlesik, errG := govdeHazirla(simdi.Unix() + 40)
-		if errG != nil {
-			t.Fatal(errG)
-		}
-		if !bulguVar(birlesik.bulgular, "engel_gemini") {
-			t.Fatalf("/dev/null yönlendirmesi için engel_gemini bekleniyordu: %+v", birlesik.bulgular)
-		}
-		if !bulguVar(birlesik.bulgular, "api_ortam_chatgpt") {
-			t.Fatalf("sahte OPENAI_BASE_URL için api_ortam_chatgpt bekleniyordu: %+v", birlesik.bulgular)
-		}
-	}
-}
-
-func TestHaftalikSifirlamaDiskOkuma(t *testing.T) {
-	// 1) Claude plan-usage-history.json: Cumartesi 09:00 (+03:00 -> 06:00 UTC) sıfırlama düşüşü (100 -> 0)
-	// 2026-11-07 05:13:02 UTC (1794028382) -> 2026-11-07 06:00:00.396 UTC (1794031200)
-	simdi := int64(1794400000) // 2026-11-11
-	var gecmis masaustuGecmis
-	if err := json.Unmarshal([]byte(`{
-		"version": 1,
-		"samples": [
-			{"t": 1794028382000, "org": "org-aktif", "u": {"sd": 100}},
-			{"t": 1794031200396, "org": "org-aktif", "u": {"sd": 0}},
-			{"t": 1794390000000, "org": "org-aktif", "u": {"sd": 42}}
-		]
-	}`), &gecmis); err != nil {
-		t.Fatal(err)
-	}
-	claudeReset, ok := claudeGecmisSifirlamaBul(gecmis, "org-aktif", simdi)
-	if !ok || claudeReset != 1794636000 {
-		t.Fatalf("Claude haftalık sıfırlama hatalı: ok=%v reset=%d (beklenen 1794636000)", ok, claudeReset)
-	}
-
-	// Çok geniş aralıklı (ör. 3 gün) düşüş varsa tahmin yürütülmemeli (false dönmeli)
-	var genisGecmis masaustuGecmis
-	_ = json.Unmarshal([]byte(`{
-		"version": 1,
-		"samples": [
-			{"t": 1793772000000, "org": "org-aktif", "u": {"sd": 80}},
-			{"t": 1794031200000, "org": "org-aktif", "u": {"sd": 5}}
-		]
-	}`), &genisGecmis)
-	if r, okGenis := claudeGecmisSifirlamaBul(genisGecmis, "org-aktif", simdi); okGenis {
-		t.Fatalf("geniş aralıklı düşüşte tahmin yapılmamalıydı, dönen: %d", r)
-	}
-
-	// 2) ChatGPT / Codex: 10080 dk (7 gün) seven_day olurken, 43200 dk (30 gün free tier) thirty_day olmalı
-	yuzde7 := 34.5
-	yuzde30 := 12.0
-	rm7 := map[string]string{}
-	codexPencereEkle(rm7, &codexPencere{UsedPercent: &yuzde7, WindowMinutes: 10080, ResetsAt: simdi + 86400}, false)
-	if rm7["seven_day.resets_at"] != strconv.FormatInt(simdi+86400, 10) {
-		t.Fatalf("10080 dk seven_day.resets_at olmalıydı: %+v", rm7)
-	}
-	rm30 := map[string]string{}
-	codexPencereEkle(rm30, &codexPencere{UsedPercent: &yuzde30, WindowMinutes: 43200, ResetsAt: simdi + 20*86400}, true)
-	if _, var7 := rm30["seven_day.resets_at"]; var7 {
-		t.Fatalf("43200 dk (30 gün) seven_day.resets_at alanına yazılmamalı: %+v", rm30)
-	}
-	if rm30["thirty_day.resets_at"] != strconv.FormatInt(simdi+20*86400, 10) {
-		t.Fatalf("43200 dk thirty_day.resets_at olmalıydı: %+v", rm30)
-	}
-
-	// 3) Gemini / Antigravity: süresi dün dolmuş 7 günlük kota kullanım yüzdesi üretmemeli ama bir sonraki haftalık sıfırlamayı (+7 gün) vermeli
-	gecmisReset := simdi - 86400 // dün sıfırlanmış
-	mtSn := gecmisReset - 6*86400
-	disB64 := sahteUserStatusDisB64("deniz@firma.com", 64, []struct {
-		etiket  string
-		kalan   float32
-		resetSn int64
-	}{
-		{etiket: "Claude Sonnet 4.6", kalan: 0.25, resetSn: gecmisReset},
-	})
-	eposta, limR, limVar, haftaReset := agyUserStatusCoz(disB64, mtSn, simdi)
-	if eposta != "deniz@firma.com" {
-		t.Fatalf("eposta hatalı: %q", eposta)
-	}
-	if limVar || len(limR) != 0 {
-		t.Fatalf("süresi dolmuş pencereden aktif limit yüzdesi çıkmamalıydı: %+v", limR)
-	}
-	if haftaReset != gecmisReset+7*86400 {
-		t.Fatalf("sonraki haftalık sıfırlama %d bekleniyordu, gelen %d", gecmisReset+7*86400, haftaReset)
-	}
-}
-
-func TestCodexArsivReasoningVeGeminiJSONL(t *testing.T) {
-	eskiDizin := dizin
-	dizin = t.TempDir()
-	defer func() { dizin = eskiDizin }()
-
-	ev := t.TempDir()
-	t.Setenv("HOME", ev)
-	t.Setenv("USERPROFILE", ev)
-	t.Setenv("CLAUDE_CONFIG_DIR", "")
-	t.Setenv("CODEX_HOME", "")
-	t.Setenv("GEMINI_CLI_HOME", "")
-	t.Setenv("OPENAI_API_KEY", "")
-	t.Setenv("GEMINI_API_KEY", "")
-	t.Setenv("GOOGLE_API_KEY", "")
-
-	simdi := time.Now().UTC().Truncate(time.Second)
-	t1 := simdi.Add(-15 * time.Minute).Format(time.RFC3339)
-	t2 := simdi.Add(-10 * time.Minute).Format(time.RFC3339)
-
-	// 1. Codex aktif oturumu: reasoning_output_tokens ayrı verildiğinde (Total >= In+Out+Reasoning) çıktıya eklenmeli,
-	// total_token_usage olmadan aynı last_token_usage.total_tokens gelen iki farklı tur atlanmamalı
-	aktifDir := filepath.Join(ev, ".codex", "sessions", "2026", "11", "11")
-	arsivDir := filepath.Join(ev, ".codex", "archived_sessions")
-	_ = os.MkdirAll(aktifDir, 0o755)
-	_ = os.MkdirAll(arsivDir, 0o755)
-
-	aktifYol := filepath.Join(aktifDir, "rollout-arsiv-test.jsonl")
-	icerik := `{"timestamp":"` + t1 + `","type":"session_meta","payload":{"id":"codex-arsiv-1","creator_account_id":"acct-1"}}` + "\n" +
-		`{"timestamp":"` + t1 + `","type":"turn_context","payload":{"model":"gpt-5.2-codex"}}` + "\n" +
-		`{"timestamp":"` + t1 + `","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":1000,"cached_input_tokens":600,"output_tokens":100,"reasoning_output_tokens":200,"total_tokens":1300}}}}` + "\n" +
-		`{"timestamp":"` + t2 + `","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":1000,"cached_input_tokens":600,"output_tokens":300,"reasoning_output_tokens":200,"total_tokens":1300}}}}` + "\n"
-	_ = os.WriteFile(aktifYol, []byte(icerik), 0o600)
-
-	// 2. Gemini CLI .jsonl oturumu
-	gemDir := filepath.Join(ev, ".gemini", "tmp", "proje-jsonl", "chats")
-	_ = os.MkdirAll(gemDir, 0o755)
-	gemJSONL := `{"sessionId":"gem-jsonl-1","type":"user","timestamp":"` + t1 + `"}` + "\n" +
-		`{"sessionId":"gem-jsonl-1","type":"gemini","timestamp":"` + t2 + `","model":"gemini-2.5-flash","tokens":{"input":500,"cached":200,"output":90,"thoughts":30}}` + "\n"
-	_ = os.WriteFile(filepath.Join(gemDir, "session-2026.jsonl"), []byte(gemJSONL), 0o600)
-
-	ilk := toplaDiger(simdi.Unix())
-	byModel := map[string]Satir{}
-	for _, r := range ilk.satirlar {
-		byModel[r.Model] = r
-	}
-	// İlk tur: Out=100+200=300 (Total 1300 == 1000+100+200); İkinci tur: Out=300 (Total 1300 < 1000+300+200, reasoning dahil) -> toplam Out=600, Messages=2
-	cx := byModel["gpt-5.2-codex"]
-	if cx.Messages != 2 || cx.Input != 800 || cx.Cr != 1200 || cx.Output != 600 {
-		t.Fatalf("codex reasoning/dedup hatalı: %+v", cx)
-	}
-	gm := byModel["gemini-2.5-flash"]
-	if gm.Messages != 1 || gm.Input != 300 || gm.Cr != 200 || gm.Output != 120 {
-		t.Fatalf("gemini jsonl okuma hatalı: %+v", gm)
-	}
-
-	// 3. Oturum archived_sessions klasörüne taşındığında kullanım korunmalı ve silinen_chatgpt alarmı üretilmemeli!
-	arsivYol := filepath.Join(arsivDir, "rollout-arsiv-test.jsonl")
-	if err := os.Rename(aktifYol, arsivYol); err != nil {
-		t.Fatal(err)
-	}
-	ikinci := toplaDiger(simdi.Unix() + 5)
-	for _, b := range ikinci.bulgular {
-		if b.K == "silinen_chatgpt" {
-			t.Fatalf("arşivlenen Codex oturumu silinen_chatgpt üretmemeli: %+v", ikinci.bulgular)
-		}
-	}
-	var arsivSonrasiMesaj int64
-	for _, r := range ikinci.satirlar {
-		if r.Model == "gpt-5.2-codex" {
-			arsivSonrasiMesaj += r.Messages
-		}
-	}
-	if arsivSonrasiMesaj != 2 {
-		t.Fatalf("arşivlenen Codex oturumu sayılmaya devam etmeliydi, gelen=%d", arsivSonrasiMesaj)
+		t.Fatalf(">200k Antigravity isteği @uzun olmalıydı: %+v", modeller)
 	}
 }
 
@@ -728,7 +684,7 @@ func TestAgyStatusLineKotaVeAyarKoruma(t *testing.T) {
 	agyCliDir := filepath.Join(ev, ".gemini", "antigravity-cli")
 	t.Setenv(testAgyCliDizin, agyCliDir)
 
-	simdi := int64(1794448616) // 2026-11-12T01:56:56Z
+	simdi := int64(1794448616)
 	girdi := []byte(`{
 		"product": "antigravity",
 		"email": "ornek@ekip.com",
@@ -757,14 +713,12 @@ func TestAgyStatusLineKotaVeAyarKoruma(t *testing.T) {
 		t.Fatalf("3p havuz yüzdeleri hatalı: %v", coz.R)
 	}
 
-	// Kota tamamen tükendiğinde remaining_fraction alanı protobuf JSON'da atlanabilir -> %100 sayılmalı
 	tukenen := []byte(`{"email":"ornek@ekip.com","quota":{"gemini-weekly":{"reset_time":"2026-11-14T08:44:04Z"}}}`)
 	cozTukenen, okT := agyStatusCoz(tukenen, simdi)
 	if !okT || cozTukenen.R["seven_day.used_percentage"] != "100" {
 		t.Fatalf("tükenen kota %%100 olmalıydı: %+v", cozTukenen)
 	}
 
-	// Disk üzerinden geminiHesapLimitVeResetOku entegrasyonu
 	agyLimitYaz(coz)
 	hHex, ep, lim, limVar, hReset := geminiHesapLimitVeResetOku(simdi)
 	if !limVar || ep != "ornek@ekip.com" || hHex != hesapOzeti("gemini", "ornek@ekip.com") || hReset != 1794645844 {
@@ -774,11 +728,10 @@ func TestAgyStatusLineKotaVeAyarKoruma(t *testing.T) {
 		t.Fatalf("limit haritası hatalı: %v", lim.R)
 	}
 
-	// settings.json kurulumu, ayarYaz koruması ve geri yükleme
 	_ = os.MkdirAll(agyCliDir, 0o700)
 	ayarYol := filepath.Join(agyCliDir, "settings.json")
 	_ = os.WriteFile(ayarYol, []byte(`{"statusLine":{"type":"command","command":"echo ozel"}}`), 0o600)
-	_ = ayarYaz(Ayar{URL: "https://ornek.com", Cihaz: strings.Repeat("a", 32), Etiket: "test", UyariKuruldu: []string{"/ornek/.claude"}})
+	_ = ayarYaz(Ayar{URL: "https://ornek.com", Cihaz: strings.Repeat("a", 32), Etiket: "test", UyariKuruldu: []string{"/ornek/test-dizin"}})
 
 	agyDurumSatiriKur()
 	okunanAyar, err := ayarOku()

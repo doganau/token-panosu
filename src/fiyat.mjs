@@ -15,6 +15,20 @@ export const GEMINI_RESMI_ADRES = "https://ai.google.dev/gemini-api/docs/pricing
 export const LITELLM_ADRES = "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json";
 export const UZUN_EKI = "@uzun";
 
+const CARBON_GECIS_MS = Date.parse("2026-12-01T00:00:00Z");
+
+// Tarihe bağlı resmî fiyat geçişleri (ör. Gemini 4 Carbon / Argon: 30 Kas 2026 sonuna dek tanıtım fiyatı, 1 Ara 2026 itibarıyla standart tarife)
+export const DONEMLI = {
+  "gemini-4-carbon": [
+    { bitMs: CARBON_GECIS_MS, kayit: { b: [2, 10, 2, 2, 0.1] } },
+    { basMs: CARBON_GECIS_MS, kayit: { b: [4, 20, 4, 4, 0.2], u: { esik: 200000, f: [8, 30, 8, 8, 0.4] } } },
+  ],
+  "gemini-4-argon": [
+    { bitMs: CARBON_GECIS_MS, kayit: { b: [2, 10, 2, 2, 0.1] } },
+    { basMs: CARBON_GECIS_MS, kayit: { b: [4, 20, 4, 4, 0.2], u: { esik: 200000, f: [8, 30, 8, 8, 0.4] } } },
+  ],
+};
+
 export const YERLESIK = {
   // Anthropic Claude ($ / MTok: [girdi, çıktı, cache yazma 5 dk, cache yazma 1 sa, cache okuma])
   "claude-fable-5-2": { b: [8, 40, 10, 16, 0.2] },
@@ -47,13 +61,17 @@ export const YERLESIK = {
   // OpenAI ChatGPT / Codex API eşdeğeri ($ / MTok)
   "gpt-6.1-sol": { b: [2, 10, 2, 2, 0.1], u: { esik: 272000, f: [4, 15, 4, 4, 0.2] } },
   "gpt-6.1-terra": { b: [1, 5, 1, 1, 0.05], u: { esik: 272000, f: [2, 7.5, 2, 2, 0.1] } },
-  "gpt-6": { b: [2, 10, 2, 2, 0.2], u: { esik: 272000, f: [4, 15, 4, 4, 0.4] } },
+  "gpt-6": { b: [2, 10, 9.375, 9.375, 0.2], u: { esik: 272000, f: [4, 15, 18.75, 18.75, 0.4] } },
+  "gpt-6-pro": { b: [60, 240, 93.75, 93.75, 15], u: { esik: 272000, f: [120, 360, 187.5, 187.5, 30] } },
+  "gpt-6-mini": { b: [1.2, 6, 1.875, 1.875, 0.12], u: { esik: 272000, f: [2.4, 9, 3.75, 3.75, 0.24] } },
   "gpt-6-sol": { b: [2, 10, 2, 2, 0.2], u: { esik: 272000, f: [4, 15, 4, 4, 0.4] } },
   "gpt-6-luna": { b: [0.1, 0.5, 0.1, 0.1, 0.01], u: { esik: 272000, f: [0.2, 0.75, 0.2, 0.2, 0.02] } },
   "gpt-6-astra": { b: [10, 50, 10, 10, 1], u: { esik: 272000, f: [20, 75, 20, 20, 2] } },
   "gpt-6-rosalind": { b: [15, 75, 15, 15, 1.5], u: { esik: 272000, f: [30, 112.5, 30, 30, 3] } },
   "gpt-6-cyber": { b: [20, 100, 20, 20, 2], u: { esik: 272000, f: [40, 150, 40, 40, 4] } },
-  "gpt-5.6": { b: [4, 20, 4, 4, 0.4], u: { esik: 272000, f: [8, 30, 8, 8, 0.8] } },
+  "gpt-5.6": { b: [4, 20, 4.6875, 4.6875, 0.4], u: { esik: 272000, f: [8, 30, 9.375, 9.375, 0.8] } },
+  "gpt-5.6-pro": { b: [30, 180, 46.875, 46.875, 7.5], u: { esik: 272000, f: [60, 270, 93.75, 93.75, 15] } },
+  "gpt-5.6-mini": { b: [0.75, 4.5, 1.1875, 1.1875, 0.075] },
   "gpt-5.6-sol": { b: [4, 20, 4, 4, 0.4], u: { esik: 272000, f: [8, 30, 8, 8, 0.8] } },
   "gpt-5.6-terra": { b: [2, 12, 2, 2, 0.2], u: { esik: 272000, f: [4, 18, 4, 4, 0.4] } },
   "gpt-5.6-luna": { b: [0.2, 1.2, 0.2, 0.2, 0.02], u: { esik: 272000, f: [0.4, 1.8, 0.4, 0.4, 0.04] } },
@@ -62,21 +80,21 @@ export const YERLESIK = {
   "gpt-5.5-pro": { b: [30, 180, 30, 30, 3], u: { esik: 272000, f: [60, 270, 60, 60, 6] } },
   "gpt-5.5-cyber": { b: [12.5, 75, 12.5, 12.5, 1.25] },
   "gpt-5.4": { b: [2.5, 15, 2.5, 2.5, 0.25], u: { esik: 272000, f: [5, 22.5, 5, 5, 0.5] } },
-  "gpt-5.4-pro": { b: [30, 180, 30, 30, 3], u: { esik: 272000, f: [60, 270, 60, 60, 6] } },
+  "gpt-5.4-pro": { b: [30, 180, 30, 30, 7.5], u: { esik: 272000, f: [60, 270, 60, 60, 15] } },
   "gpt-5.4-mini": { b: [0.75, 4.5, 0.75, 0.75, 0.075] },
   "gpt-5.4-nano": { b: [0.2, 1.25, 0.2, 0.2, 0.02] },
   "gpt-5.3-codex": { b: [1.75, 14, 1.75, 1.75, 0.175] },
   "gpt-5.3": { b: [1.75, 14, 1.75, 1.75, 0.175] },
   "gpt-5.2-codex": { b: [1.75, 14, 1.75, 1.75, 0.175] },
   "gpt-5.2": { b: [1.75, 14, 1.75, 1.75, 0.175] },
-  "gpt-5.2-pro": { b: [21, 168, 21, 21, 2.1] },
+  "gpt-5.2-pro": { b: [21, 168, 21, 21, 5.25] },
   "gpt-5.1-codex": { b: [1.25, 10, 1.25, 1.25, 0.125] },
   "gpt-5.1-codex-max": { b: [1.25, 10, 1.25, 1.25, 0.125] },
   "gpt-5.1-codex-mini": { b: [0.25, 2, 0.25, 0.25, 0.025] },
   "gpt-5.1": { b: [1.25, 10, 1.25, 1.25, 0.125] },
   "gpt-5-codex": { b: [1.25, 10, 1.25, 1.25, 0.125] },
   "gpt-5": { b: [1.25, 10, 1.25, 1.25, 0.125] },
-  "gpt-5-pro": { b: [15, 120, 15, 15, 1.5] },
+  "gpt-5-pro": { b: [15, 120, 15, 15, 3.75] },
   "gpt-5-mini": { b: [0.25, 2, 0.25, 0.25, 0.025] },
   "gpt-5-nano": { b: [0.05, 0.4, 0.05, 0.05, 0.005] },
   "gpt-4.1": { b: [2, 8, 2, 2, 0.5] },
@@ -97,12 +115,12 @@ export const YERLESIK = {
   // Google Gemini & Antigravity API eşdeğeri ($ / MTok)
   "gemini-4-carbon": { b: [2, 10, 2, 2, 0.1] },
   "gemini-4-argon": { b: [2, 10, 2, 2, 0.1] },
-  "gemini-3.8-flash": { b: [0.75, 3.75, 0.75, 0.75, 0.075] },
+  "gemini-3.8-flash": { b: [0.5, 3, 0.5, 0.5, 0.05] },
   "gemini-3.8-flash-cyber": { b: [1.5, 7.5, 1.5, 1.5, 0.15] },
-  "gemini-3.7-flash": { b: [0.75, 3.75, 0.75, 0.75, 0.075] },
-  "gemini-3.6-flash": { b: [0.75, 3.75, 0.75, 0.75, 0.075] },
-  "gemini-3.5-flash": { b: [1.5, 9, 1.5, 1.5, 0.15] },
-  "gemini-3.5-flash-lite": { b: [0.3, 2.5, 0.3, 0.3, 0.03] },
+  "gemini-3.7-flash": { b: [0.5, 3, 0.5, 0.5, 0.05] },
+  "gemini-3.6-flash": { b: [0.5, 3, 0.5, 0.5, 0.05] },
+  "gemini-3.5-flash": { b: [0.5, 3, 0.5, 0.5, 0.05] },
+  "gemini-3.5-flash-lite": { b: [0.25, 1.5, 0.25, 0.25, 0.025] },
   "gemini-omni-1.2-flash": { b: [1.5, 9, 1.5, 1.5, 0.15] },
   "gemini-omni-1.1-flash": { b: [1.5, 9, 1.5, 1.5, 0.15] },
   "gemini-3.1-pro": { b: [2, 12, 2, 2, 0.2], u: { esik: 200000, f: [4, 18, 4, 4, 0.4] } },
@@ -118,9 +136,8 @@ export const YERLESIK = {
   "gemini-2.5-flash-lite": { b: [0.1, 0.4, 0.1, 0.1, 0.01] },
   "gemini-2.0-flash": { b: [0.1, 0.4, 0.1, 0.1, 0.025] },
   "gemini-pro-latest": { b: [2, 12, 2, 2, 0.2], u: { esik: 200000, f: [4, 18, 4, 4, 0.4] } },
-  "gemini-flash-latest": { b: [0.75, 3.75, 0.75, 0.75, 0.075] },
-  "gemini-flash-lite-latest": { b: [0.3, 2.5, 0.3, 0.3, 0.03] },
-  "agy-gemini": { b: [2, 10, 2, 2, 0.1] },
+  "gemini-flash-latest": { b: [0.5, 3, 0.5, 0.5, 0.05] },
+  "gemini-flash-lite-latest": { b: [0.25, 1.5, 0.25, 0.25, 0.025] },
 };
 
 // Antigravity (Antigravity uygulaması, Antigravity IDE ve agy CLI) kullanımı "agy-<model>" adıyla gelir.
@@ -409,8 +426,49 @@ export async function fiyatlariIndir(fetchFn = fetch) {
   };
 }
 
-// Etkin liste: yerleşik < indirilen
-export const birlestir = (indirilen) => ({ ...YERLESIK, ...(indirilen || {}) });
+const ESKI_MODEL_ESLEME = {
+  "gemini-3-flash-a": "gemini-3.5-flash",
+  "gemini-3-flash-b": "gemini-3.5-flash",
+  "gemini-default": "gemini-3.5-flash",
+  "gemini-pro-a": "gemini-3.1-pro",
+  "gemini-pro-b": "gemini-3.1-pro",
+};
+const SEVIYE_EKI_RE = /(?:-(?:tiered|medium|high|low|thinking|minimal))+$/;
+
+function zamanMsCoz(zaman) {
+  if (zaman === undefined || zaman === null) return Date.now();
+  if (typeof zaman === "number") return Number.isFinite(zaman) ? (zaman > 0 && zaman < 1e11 ? zaman * 1000 : zaman) : Date.now();
+  if (zaman instanceof Date) return zaman.getTime();
+  const p = Date.parse(String(zaman));
+  return Number.isFinite(p) ? p : Date.now();
+}
+
+export function donemliKayit(anahtar, tabanKayit, zaman) {
+  if (tabanKayit && tabanKayit.ozel) return tabanKayit;
+  const dilimler = Object.hasOwn(DONEMLI, anahtar) ? DONEMLI[anahtar] : null;
+  if (!dilimler) return tabanKayit;
+  const ms = zamanMsCoz(zaman);
+  for (const d of dilimler) {
+    if ((d.basMs === undefined || ms >= d.basMs) && (d.bitMs === undefined || ms < d.bitMs)) {
+      return d.kayit;
+    }
+  }
+  return tabanKayit;
+}
+
+// Etkin liste: yerleşik < indirilen (dönemli resmi geçişler uygulanmış haliyle)
+export const birlestir = (indirilen, zaman) => {
+  const ham = { ...YERLESIK, ...(indirilen || {}) };
+  if (Object.hasOwn(ham, "agy-gemini") && !(indirilen && indirilen["agy-gemini"] && indirilen["agy-gemini"].ozel)) {
+    delete ham["agy-gemini"];
+  }
+  for (const anahtar of Object.keys(DONEMLI)) {
+    if (!ham[anahtar] || !ham[anahtar].ozel) {
+      ham[anahtar] = donemliKayit(anahtar, ham[anahtar], zaman);
+    }
+  }
+  return ham;
+};
 
 export const tabanAd = (model) => (model.endsWith(UZUN_EKI) ? model.slice(0, -UZUN_EKI.length) : model);
 
@@ -421,16 +479,20 @@ const surumKarsilastir = (a, b) => {
   return 0;
 };
 
-// Model adına göre eşleşen katalog anahtarı ve fiyat kaydı: tam ad, alt model (agy-/openai-), tarih eki atılmış ad, aile yedeği
-export function eslesenModelBul(liste, model) {
+// Model adına göre eşleşen katalog anahtarı ve fiyat kaydı: tam ad, alt model (agy-/openai-), seviye/tarih eki atılmış ad, aile yedeği
+export function eslesenModelBul(liste, model, zaman) {
   const l = liste || YERLESIK;
   const ad = String(tabanAd(String(model || ""))).toLowerCase();
-  const don = (anahtar) => ({ anahtar, kayit: l[anahtar] || YERLESIK[anahtar] });
-  if (l[ad]) return { anahtar: ad, kayit: l[ad] };
+  const don = (anahtar) => ({ anahtar, kayit: donemliKayit(anahtar, l[anahtar] || YERLESIK[anahtar], zaman) });
+
+  if (ad === "agy-gemini" && !(l[ad] && l[ad].ozel)) return eslesenModelBul(l, "gemini-4-carbon", zaman);
+  if (Object.hasOwn(ESKI_MODEL_ESLEME, ad)) return eslesenModelBul(l, ESKI_MODEL_ESLEME[ad], zaman);
+  if (l[ad]) return don(ad);
 
   if (ad.startsWith(AGY_EKI)) {
     const alt = ad.slice(AGY_EKI.length);
     if (
+      Object.hasOwn(ESKI_MODEL_ESLEME, alt) ||
       alt.startsWith("claude-") ||
       alt.startsWith("gemini-") ||
       alt.startsWith("gpt-") ||
@@ -439,31 +501,35 @@ export function eslesenModelBul(liste, model) {
       alt.startsWith("o4") ||
       alt.startsWith("codex-")
     ) {
-      return eslesenModelBul(l, alt);
+      return eslesenModelBul(l, alt, zaman);
     }
-    return don(l["gemini-4-argon"] ? "gemini-4-argon" : "gemini-3.1-pro");
+    return don(l["gemini-4-carbon"] || YERLESIK["gemini-4-carbon"] ? "gemini-4-carbon" : "gemini-3.1-pro");
   }
 
   if (ad.startsWith("openai-")) {
     const alt = ad.slice("openai-".length);
-    if (alt) return eslesenModelBul(l, alt);
+    if (alt) return eslesenModelBul(l, alt, zaman);
   }
 
-  let s = ad.replace(/-\d{8}$/, "").replace(/-\d{4}-\d{2}-\d{2}$/, "");
-  if (l[s]) return { anahtar: s, kayit: l[s] };
+  const EkiAtilmis = ad.replace(SEVIYE_EKI_RE, "");
+  if (EkiAtilmis && EkiAtilmis !== ad) return eslesenModelBul(l, EkiAtilmis, zaman);
+
+  let s = ad.replace(/-\d{8}$/, "").replace(/-\d{4}-\d{2}-\d{2}$/, "").replace(SEVIYE_EKI_RE, "");
+  if (Object.hasOwn(ESKI_MODEL_ESLEME, s)) return eslesenModelBul(l, ESKI_MODEL_ESLEME[s], zaman);
+  if (l[s]) return don(s);
   // Claude'da noktalı ya da tireli sürüm farkını normalize et (ör. claude-opus-5.5 -> claude-opus-5-5)
   if (s.startsWith("claude-") && s.includes(".")) {
     const tireli = s.replace(/\./g, "-");
-    if (l[tireli]) return { anahtar: tireli, kayit: l[tireli] };
+    if (l[tireli]) return don(tireli);
   }
   while (s.includes("-")) {
-    if (l[s]) return { anahtar: s, kayit: l[s] };
+    if (l[s]) return don(s);
     s = s.slice(0, s.lastIndexOf("-"));
   }
 
   const sgl = saglayiciOf(ad);
   if (sgl === "gemini") {
-    if (ad.includes("flash-lite")) return don("gemini-3.5-flash-lite");
+    if (ad.includes("flash-lite")) return don("gemini-3.1-flash-lite");
     if (ad.includes("flash")) return don("gemini-3.8-flash");
     if (ad.includes("carbon")) return don("gemini-4-carbon");
     if (ad.includes("argon") || ad.includes("gemini-4")) return don("gemini-4-argon");
@@ -490,24 +556,27 @@ export function eslesenModelBul(liste, model) {
   for (const a of AILELER) {
     if (!ad.includes(a)) continue;
     const aday = Object.keys(l).filter((k) => k.startsWith("claude-") && k.includes(a)).sort(surumKarsilastir).pop();
-    if (aday) return { anahtar: aday, kayit: l[aday] };
+    if (aday) return don(aday);
   }
   return don("claude-opus-5-5");
 }
 
-export function kayitBul(liste, model) {
-  return eslesenModelBul(liste, model).kayit;
+export function kayitBul(liste, model, zaman) {
+  return eslesenModelBul(liste, model, zaman).kayit;
 }
 
 // Satırın fiyat dizisi: "@uzun" satırları (varsa) yüksek fiyattan
-export function fiyatBul(liste, model) {
-  const k = kayitBul(liste, model);
+export function fiyatBul(liste, model, zaman) {
+  const k = kayitBul(liste, model, zaman);
   return String(model || "").endsWith(UZUN_EKI) && k.u ? k.u.f : k.b;
 }
 
 // İstemciye gönderilen eşikler: {"claude-haiku-5-5": 100000, "gemini-3.1-pro": 200000, "gpt-5.4": 272000, ...}
-export function esikler(liste) {
+export function esikler(liste, zaman) {
   const e = {};
-  for (const [ad, k] of Object.entries(liste || {})) if (k && k.u) e[ad] = k.u.esik;
+  for (const [ad, hamK] of Object.entries(liste || {})) {
+    const k = donemliKayit(ad, hamK, zaman);
+    if (k && k.u) e[ad] = k.u.esik;
+  }
   return e;
 }

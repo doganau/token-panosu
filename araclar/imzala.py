@@ -32,6 +32,22 @@ YEREL_MUHUR = os.path.join(KOK, ".muhur-anahtari.key")
 SERVIS, HESAP = "token-panosu-imza", "ozel-anahtar"
 MUHUR_SERVIS, MUHUR_HESAP = "token-panosu-muhur", "muhur-anahtari"
 
+TEMEL_HEDEFLER = [
+    ("darwin", "arm64", ""),
+    ("darwin", "amd64", ""),
+    ("linux", "amd64", ""),
+    ("linux", "arm64", ""),
+    ("windows", "amd64", ".exe"),
+    ("windows", "arm64", ".exe"),
+]
+PAKET_VARYANTLARI = ["", "-c", "-g", "-m", "-cg", "-cm", "-gm"]
+HEDEF_DOSYALAR = {
+    f"{sis}-{mim}{ek}": f"token-panosu-{sis}-{mim}{ek}{uzanti}"
+    for sis, mim, uzanti in TEMEL_HEDEFLER
+    for ek in PAKET_VARYANTLARI
+}
+TEMEL_HEDEF_ANAHTARLARI = [f"{sis}-{mim}" for sis, mim, _ in TEMEL_HEDEFLER]
+
 
 def sh(*a, **k):
     return subprocess.run(a, capture_output=True, **k)
@@ -123,6 +139,8 @@ def muhur_bayrak():
     if len(sys.argv) < 4:
         sys.exit("kullanım: imzala.py muhur-bayrak <sürüm> <hedef>")
     surum, hedef = sys.argv[2].strip(), sys.argv[3].strip()
+    if hedef not in HEDEF_DOSYALAR:
+        sys.exit(f"geçersiz hedef: {hedef}")
     if not anahtar_oku(sessiz=True) and not os.environ.get("TOKEN_PANOSU_MUHUR_HEX") and not os.path.isfile(YEREL_MUHUR):
         return
     ana = muhur_oku_veya_uret(olustur=True)
@@ -177,9 +195,17 @@ def imzala():
     surum = int(m.group(1))
     if not os.path.isdir(INDIR):
         sys.exit("dist/indir bulunamadı: önce sh araclar/derle.sh")
-    dosyalar = sorted(f for f in os.listdir(INDIR) if f.startswith("token-panosu-") and not f.endswith(".txt"))
-    if not dosyalar:
+    mevcut_dosyalar = {f for f in os.listdir(INDIR) if f.startswith("token-panosu-") and not f.endswith(".txt")}
+    if not mevcut_dosyalar:
         sys.exit("dist/indir boş: önce sh araclar/derle.sh")
+    bilinen_dosyalar = set(HEDEF_DOSYALAR.values())
+    bilinmeyen = sorted(mevcut_dosyalar - bilinen_dosyalar)
+    if bilinmeyen:
+        sys.exit("dist/indir içinde tanınmayan hedef ikilisi: " + ", ".join(bilinmeyen))
+    eksik_temel = [h for h in TEMEL_HEDEF_ANAHTARLARI if HEDEF_DOSYALAR[h] not in mevcut_dosyalar]
+    if eksik_temel:
+        sys.exit("dist/indir içinde eksik temel hedef ikilileri: " + ", ".join(eksik_temel))
+    hedef_ciftleri = [(h, ad) for h, ad in sorted(HEDEF_DOSYALAR.items()) if ad in mevcut_dosyalar]
     sonuc = {}
     with tempfile.TemporaryDirectory() as d:
         os.chmod(d, 0o700)
@@ -189,12 +215,12 @@ def imzala():
             f.write(anahtar_oku())
         if sh("openssl", "rsa", "-in", pem, "-pubout", "-out", pub).returncode:
             sys.exit("açık anahtar çıkarılamadı")
-        for ad in dosyalar:
-            hedef = ad[len("token-panosu-"):].removesuffix(".exe")
+        for hedef, ad in hedef_ciftleri:
             veri = open(os.path.join(INDIR, ad), "rb").read()
             ozet = hashlib.sha256(veri).hexdigest()
-            if open(os.path.join(INDIR, ad + ".sha256.txt")).read().strip() != ozet:
-                sys.exit(ad + ": .sha256.txt uyuşmuyor, yeniden derle")
+            sha_dosya = os.path.join(INDIR, ad + ".sha256.txt")
+            if not os.path.isfile(sha_dosya) or open(sha_dosya).read().strip() != ozet:
+                sys.exit(ad + ": .sha256.txt uyuşmuyor veya eksik, yeniden derle")
             yuk = ("token-panosu-ikili-v1\n%d\n%s\n%s\n" % (surum, hedef, ozet)).encode()
             p, s = os.path.join(d, "p.bin"), os.path.join(d, "s.bin")
             open(p, "wb").write(yuk)
@@ -222,9 +248,9 @@ def imzala():
                     }
         except Exception:
             pass
-    # Yalnızca son 5 mühürlü sürümün özet geçmişini tut
-    if len(gecmis) > 5:
-        for ks in sorted(gecmis.keys(), key=lambda x: int(x))[:-5]:
+    # Geçiş uyumluluğu için v31+ dahil en son 10 mühürlü sürümün özet geçmişini koru
+    if len(gecmis) > 10:
+        for ks in sorted(gecmis.keys(), key=lambda x: int(x))[:-10]:
             gecmis.pop(ks, None)
     cikti = {"ikili": {"surum": surum, "dosyalar": sonuc}}
     if gecmis:
