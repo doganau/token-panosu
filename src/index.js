@@ -23,6 +23,7 @@ const SAGLAYICILAR = ["claude", "chatgpt", "gemini"];
 const SAGLAYICI_AD = { claude: "Claude", chatgpt: "ChatGPT", gemini: "Gemini" };
 const saglayiciSec = (s) => (SAGLAYICILAR.includes(s) ? s : "claude");
 const VARSAYILAN_ORIGIN = "https://pano.ornek.com";
+const RESMI_AJAN_RE = /^token-panosu\/\d+ \((darwin|windows|linux)\)$/;
 const EPOSTA_RE = /^[^\s@<>"'\\]{1,64}@[^\s@<>"'\\]{1,120}\.[^\s@<>"'\\]{2,}$/;
 const epostaTemizle = (v) => {
   if (typeof v !== "string") return "";
@@ -950,11 +951,15 @@ async function handleHesap(req, env, path, url, erisim) {
   const now = Math.floor(Date.now() / 1000);
   const kendiCihaz = async (id) => u.uye_id && (await env.DB.prepare("SELECT id FROM devices WHERE id = ? AND uye_id = ?").bind(String(id || ""), u.uye_id).first());
   if (path === "/api/hesap" && req.method === "GET") {
-    const cihazlar = u.uye_id
-      ? (await env.DB.prepare("SELECT id, label, created_at, last_seen, client_ver, os FROM devices WHERE uye_id = ? ORDER BY created_at").bind(u.uye_id).all()).results
+    const hamCihazlar = u.uye_id
+      ? (await env.DB.prepare("SELECT id, label, created_at, last_seen, client_ver, os, srv_flags FROM devices WHERE uye_id = ? ORDER BY created_at").bind(u.uye_id).all()).results
       : [];
+    const cihazlar = hamCihazlar.map(({ srv_flags, ...c }) => ({
+      ...c,
+      ozel_istemci: typeof srv_flags === "string" && srv_flags.includes('"ozel_istemci"'),
+    }));
     const uye = u.uye_id ? await env.DB.prepare("SELECT id, ad FROM uyeler WHERE id = ?").bind(u.uye_id).first() : null;
-    return json({ kullanici: { id: u.id, kullanici_adi: u.kullanici_adi, ad: u.ad, rol: u.rol, son_giris: u.son_giris, olusturuldu: u.olusturuldu }, ofisler: u.ofisler, uye, cihazlar, now });
+    return json({ kullanici: { id: u.id, kullanici_adi: u.kullanici_adi, ad: u.ad, rol: u.rol, son_giris: u.son_giris, olusturuldu: u.olusturuldu }, ofisler: u.ofisler, uye, cihazlar, latest: SON_SURUM, now });
   }
   if (path === "/api/hesap/profil" && req.method === "POST") {
     const b = await req.json();
@@ -1439,6 +1444,14 @@ async function handleIngest(req, env, ctx) {
       k: "farkli_hesap_" + sgl,
       s: "b",
       t: `Ayrı ${ad} hesabı (${gelenAd}): ortak hesap (${ortakAd}) dışında olduğu için ortak kotaya dahil edilmedi`,
+    });
+  }
+  const uaHam = (req.headers.get("user-agent") || "").trim();
+  if (uaHam && !RESMI_AJAN_RE.test(uaHam)) {
+    sflags.push({
+      k: "ozel_istemci",
+      s: "b",
+      t: `Resmî uygulama yerine özel betik (${uaHam.slice(0, 48)}) çalışıyor; otomatik güncellenemez.`,
     });
   }
   const yazilacak = [
@@ -2615,12 +2628,12 @@ export default {
       if ((req.method === "GET" || req.method === "HEAD") && APP_ROUTES.test(p)) {
         return new Response(req.method === "HEAD" ? null : APP, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", ...SEC_HEADERS } });
       }
-      if (p === "/guncelle/manifest.json" && req.method === "GET") {
-        return new Response(JSON.stringify(MANIFEST), { headers: { "content-type": "application/json", "cache-control": "no-store" } });
+      if (p === "/guncelle/manifest.json" && (req.method === "GET" || req.method === "HEAD")) {
+        return new Response(req.method === "HEAD" ? null : JSON.stringify(MANIFEST), { headers: { "content-type": "application/json", "cache-control": "no-store" } });
       }
-      if ((p === "/kur.sh" || p === "/kur.ps1") && req.method === "GET") {
+      if ((p === "/kur.sh" || p === "/kur.ps1") && (req.method === "GET" || req.method === "HEAD")) {
         const betik = (p === "/kur.sh" ? KUR_SH : KUR_PS1).replaceAll(VARSAYILAN_ORIGIN, url.origin);
-        return new Response(betik, {
+        return new Response(req.method === "HEAD" ? null : betik, {
           headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff" },
         });
       }

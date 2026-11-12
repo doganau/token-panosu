@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	Surum    = 29 // yeni sürüm yayınlanınca artırılır; imzalı güncelleme bunu kullanır
+	Surum    = 30 // yeni sürüm yayınlanınca artırılır; imzalı güncelleme bunu kullanır
 	Protokol = 2  // sunucu ile veri biçimi
 
 	yukEsigi      = 1.5               // 1 dk yük / çekirdek: üstündeyse (işlemci çok meşgul) otomatik çalıştırma o turu atlar
@@ -189,6 +189,7 @@ func bayrakAyir(args []string) bayraklar {
 const yardimMetni = `Token Panosu gönderici
 
   token-panosu kur --kod XXXXX-XXXXX   bu bilgisayarı panoya bağlar
+  token-panosu onar                    kod gerekmeden mevcut kurulumu onarır ve resmî ikiliye taşır
   token-panosu gonder                  şimdi gönder
   token-panosu durum                   durumu ve son kayıtları göster
   token-panosu guncelle                yeni sürüm varsa şimdi güncelle
@@ -225,6 +226,8 @@ func main() {
 	switch args[0] {
 	case "kur":
 		err = kurKomutu(b)
+	case "onar":
+		err = onarKomutu(b)
 	case "gonder":
 		os.Exit(gonderKomutu(b))
 	case "guncelle":
@@ -290,27 +293,22 @@ func rastgeleHex(n int) string {
 // ---------- kur ----------
 
 func kurKomutu(b bayraklar) error {
-	adres := strings.TrimRight(b.url, "/")
-	if adres == "" {
-		adres = VarsayilanURL
-	}
-	if !adresGecerli(adres) {
-		return errors.New("adres https:// ile başlamalı")
-	}
 	kod := strings.ToUpper(strings.TrimSpace(b.kod))
 	if kod == "" {
+		if len(mevcutAdaylariBul()) > 0 {
+			return onarKomutu(b)
+		}
 		return errors.New("eşleşme kodu gerekli: token-panosu kur --kod XXXXX-XXXXX")
+	}
+	adres := sunucuAdresiCoz(b.url, "")
+	if !adresGecerli(adres) {
+		return errors.New("adres https:// ile başlamalı")
 	}
 	if err := os.MkdirAll(dizin, 0o700); err != nil {
 		return err
 	}
 	_ = os.Chmod(dizin, 0o700)
-	if _, err := os.Stat(ayarYolu()); err == nil {
-		if _, err := os.Stat(filepath.Join(dizin, "gonderici.py")); err == nil {
-			return errors.New("eski (Python) gönderici kurulu. Önce onu kaldır: python3 ~/.token-panosu/gonderici.py kaldir")
-		}
-		return errors.New("bu bilgisayar zaten kurulu. Önce 'kaldir' çalıştır")
-	}
+	mevcutAyar, _ := ayarOku()
 
 	gizli := rastgeleHex(32)
 	govde, _ := json.Marshal(map[string]string{"code": kod, "secret": gizli})
@@ -331,9 +329,14 @@ func kurKomutu(b bayraklar) error {
 	if err := anahtarKaydet(e.DeviceID, gizli); err != nil {
 		return fmt.Errorf("anahtar saklanamadı: %v", err)
 	}
-	if err := ayarYaz(Ayar{URL: adres, Cihaz: e.DeviceID, Etiket: e.Label}); err != nil {
+	yeniAyar := mevcutAyar
+	yeniAyar.URL = adres
+	yeniAyar.Cihaz = e.DeviceID
+	yeniAyar.Etiket = e.Label
+	if err := ayarYaz(yeniAyar); err != nil {
 		return err
 	}
+	yabanciZamanlayicilariTemizle()
 	if err := kendiniYerlestir(); err != nil {
 		return fmt.Errorf("program klasöre kopyalanamadı: %v", err)
 	}
@@ -349,7 +352,7 @@ func kurKomutu(b bayraklar) error {
 		return nil
 	}
 	if err := zamanlayiciKur(ikiliYolu()); err != nil {
-		return fmt.Errorf("zamanlayıcı kurulamadı: %v", err)
+		return fmt.Errorf("zamanlayıcı kurulamadı (%v). ÖNEMLİ: Özel Python/kabuk betiği YAZMAYIN; yapay zekâ kum havuzu yerine doğrudan bilgisayarın kendi Terminal uygulamasında şu komutu çalıştırın: curl -fsSL %s/kur.sh | sh", err, adres)
 	}
 	fmt.Println("Arka planda 5 dakikada bir gönderecek; bilgisayar yeniden başlayınca kendiliğinden devam eder.")
 	return nil

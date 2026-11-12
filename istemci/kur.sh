@@ -1,6 +1,7 @@
 #!/bin/sh
-# Token Panosu kurulumu (macOS ve Linux)
-#   curl -fsSL https://pano.ornek.com/kur.sh | sh -s -- --kod XXXXX-XXXXX
+# Token Panosu kurulumu ve onarımı (macOS ve Linux)
+#   Yeni kurulum: curl -fsSL https://pano.ornek.com/kur.sh | sh -s -- --kod XXXXX-XXXXX
+#   Onarım/güncelleme (kod gerekmez): curl -fsSL https://pano.ornek.com/kur.sh | sh
 # Bu bilgisayara uygun tek dosyalık programı indirir, özetini doğrular, ~/.token-panosu içine koyar
 # ve eşleştirmeyi yapar. Python ya da başka bir şey kurmaz.
 set -eu
@@ -41,4 +42,15 @@ chmod 755 "$gecici"
 mv -f "$gecici" "$dizin/token-panosu"
 trap - EXIT INT TERM
 
-"$dizin/token-panosu" kur --url "$ADRES" "$@"
+kod_var=0
+for arg in "$@"; do
+  if [ "$arg" = "--kod" ]; then
+    kod_var=1
+    break
+  fi
+done
+if [ "$kod_var" = "1" ]; then
+  "$dizin/token-panosu" kur --url "$ADRES" "$@"
+else
+  "$dizin/token-panosu" onar --url "$ADRES" "$@"
+fi

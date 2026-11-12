@@ -76,6 +76,20 @@ func agyPtyCalistir(agyYol, calismaDizini string, sure time.Duration, hazir func
 		close(bitti)
 	}()
 
+	zorlaKapat := func() {
+		_ = master.Close()
+		if cmd.Process != nil {
+			if cmd.Process.Pid > 0 {
+				_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+			}
+			_ = cmd.Process.Kill()
+		}
+		select {
+		case <-bitti:
+		case <-time.After(500 * time.Millisecond):
+		}
+	}
+
 	son := time.Now().Add(sure)
 	for time.Now().Before(son) {
 		select {
@@ -88,13 +102,10 @@ func agyPtyCalistir(agyYol, calismaDizini string, sure time.Duration, hazir func
 			_, _ = master.Write([]byte("\x04\x04"))
 			select {
 			case <-bitti:
+				_ = master.Close()
 			case <-time.After(600 * time.Millisecond):
-				if cmd.Process != nil {
-					_ = cmd.Process.Kill()
-				}
-				<-bitti
+				zorlaKapat()
 			}
-			_ = master.Close()
 			return
 		}
 		time.Sleep(100 * time.Millisecond)
@@ -103,14 +114,8 @@ func agyPtyCalistir(agyYol, calismaDizini string, sure time.Duration, hazir func
 	_, _ = master.Write([]byte("\x04\x04"))
 	select {
 	case <-bitti:
+		_ = master.Close()
 	case <-time.After(300 * time.Millisecond):
-		if cmd.Process != nil {
-			_ = cmd.Process.Kill()
-		}
-		select {
-		case <-bitti:
-		case <-time.After(500 * time.Millisecond):
-		}
+		zorlaKapat()
 	}
-	_ = master.Close()
 }

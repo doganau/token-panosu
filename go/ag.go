@@ -28,7 +28,10 @@ import (
 // Kendi kurulumunuzda -ldflags "-X main.acikNHex=..." ile gömülür (araclar/derle.sh otomatik okur).
 var acikNHex = "devre-disi"
 
-var httpIstemci = &http.Client{Timeout: 20 * time.Second}
+var (
+	httpIstemci  = &http.Client{Timeout: 20 * time.Second}
+	indirIstemci = &http.Client{Timeout: 120 * time.Second}
+)
 
 func kullaniciAjani() string { return fmt.Sprintf("token-panosu/%d (%s)", Surum, runtime.GOOS) }
 
@@ -57,7 +60,11 @@ func al(adres string, sinir int64) ([]byte, error) {
 		return nil, err
 	}
 	req.Header.Set("user-agent", kullaniciAjani())
-	res, err := httpIstemci.Do(req)
+	istemci := httpIstemci
+	if sinir > 1<<20 {
+		istemci = indirIstemci
+	}
+	res, err := istemci.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -76,11 +83,15 @@ func al(adres string, sinir int64) ([]byte, error) {
 }
 
 // İmza: HMAC-SHA256(gizli, "v1\n<cihaz>\n<zaman>\n<sha256(gövde)>")
+func imzaMetniSha256(b []byte) string {
+	oz := sha256.Sum256(b)
+	return hex.EncodeToString(oz[:])
+}
+
 func imzaHMAC(gizliHex, cihaz, ts string, govde []byte) string {
 	anahtar, _ := hex.DecodeString(gizliHex)
-	oz := sha256.Sum256(govde)
 	m := hmac.New(sha256.New, anahtar)
-	fmt.Fprintf(m, "v1\n%s\n%s\n%s", cihaz, ts, hex.EncodeToString(oz[:]))
+	fmt.Fprintf(m, "v1\n%s\n%s\n%s", cihaz, ts, imzaMetniSha256(govde))
 	return hex.EncodeToString(m.Sum(nil))
 }
 

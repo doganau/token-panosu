@@ -1867,7 +1867,7 @@ const OS = {
     gonder: "~/.token-panosu/token-panosu gonder",
     guncelle: "~/.token-panosu/token-panosu guncelle",
     kaldir: "~/.token-panosu/token-panosu kaldir",
-    not: "Terminal'de çalıştır. Haricî paket veya çalışma zamanı gerektirmez; imzalı tek bir Go ikilisi indirir ve launchd zamanlayıcısını kurar.",
+    not: "Doğrudan macOS Terminal uygulamasında çalıştırın (yapay zekâ sohbetine yapıştırmayın). Haricî paket veya çalışma zamanı gerektirmez; imzalı tek bir Go ikilisi indirir ve launchd zamanlayıcısını kurar.",
   },
   win: {
     ad: "Windows",
@@ -1876,7 +1876,7 @@ const OS = {
     gonder: `& "$env:USERPROFILE\\.token-panosu\\token-panosu.exe" gonder | Out-Host`,
     guncelle: `& "$env:USERPROFILE\\.token-panosu\\token-panosu.exe" guncelle | Out-Host`,
     kaldir: `& "$env:USERPROFILE\\.token-panosu\\token-panosu.exe" kaldir | Out-Host`,
-    not: "PowerShell'de çalıştır. Haricî kurulum gerektirmez; DPAPI korumalı cihaz anahtarı üretir ve Görev Zamanlayıcı kaydını açar.",
+    not: "Doğrudan PowerShell uygulamasında çalıştırın (yapay zekâ sohbetine yapıştırmayın). Haricî kurulum gerektirmez; DPAPI korumalı cihaz anahtarı üretir ve Görev Zamanlayıcı kaydını açar.",
   },
   linux: {
     ad: "Linux",
@@ -1885,7 +1885,7 @@ const OS = {
     gonder: "~/.token-panosu/token-panosu gonder",
     guncelle: "~/.token-panosu/token-panosu guncelle",
     kaldir: "~/.token-panosu/token-panosu kaldir",
-    not: "Terminal'de çalıştır. Zamanlama varsa systemd --user zamanlayıcısıyla, yoksa kullanıcı crontab kaydıyla kurulur.",
+    not: "Doğrudan sistem Terminal uygulamasında çalıştırın (yapay zekâ sohbetine yapıştırmayın). Zamanlama varsa systemd --user zamanlayıcısıyla, yoksa kullanıcı crontab kaydıyla kurulur.",
   },
 };
 const guessOS = () => /Win/.test(navigator.platform) ? "win" : /Linux/.test(navigator.platform) ? "linux" : "mac";
@@ -2481,6 +2481,7 @@ async function pageLogin() {
       <p class="giris-alt">${acilMod ? `<button type="button" class="link-btn" id="mod">← Kullanıcı adıyla giriş</button>` : `<span class="muted">Şifreni unuttuysan yöneticiden bağlantı iste.</span><button type="button" class="link-btn" id="mod">Acil durum girişi</button>`}</p>
     </div>`, { authed: false });
     sifreGosterBagla();
+  onarKopyalaBagla();
     $("#mod").onclick = () => { acilMod = !acilMod; ciz(); };
     $("#f").onsubmit = async (ev) => {
       ev.preventDefault();
@@ -2512,6 +2513,7 @@ function pageKurulum() {
       <p class="err" id="ke" role="alert"></p>
     </form></div>`, { authed: false });
   sifreGosterBagla();
+  onarKopyalaBagla();
   $("#fk").onsubmit = async (ev) => {
     ev.preventDefault();
     const b = ev.submitter || $("#fk button[type=submit]");
@@ -2545,6 +2547,7 @@ async function pageSifreBelirle() {
       <p class="err" id="se" role="alert"></p>
     </form></div>`, { authed: false });
   sifreGosterBagla();
+  onarKopyalaBagla();
   $("#fs").onsubmit = async (ev) => {
     ev.preventDefault();
     const b = ev.submitter || $("#fs button[type=submit]");
@@ -2768,15 +2771,20 @@ async function pageHesabim() {
       <p class="card-sub">Bu bilgisayarların Claude, ChatGPT, Gemini ve Antigravity kullanımı senin masana sayılır.</p>
       ${h.cihazlar.length ? `<div class="table-wrap" tabindex="0" role="region" aria-labelledby="h-cihazlarim"><table class="yigin-tablo" style="--l2:'Durum';--l3:'İşlem'">
         <thead><tr><th scope="col">Bilgisayar</th><th scope="col">Durum</th><th scope="col">İşlem</th></tr></thead>
-        <tbody>${h.cihazlar.map((c) => `<tr>
+        <tbody>${h.cihazlar.map((c) => {
+          const guncelDegil = h.latest && (c.client_ver || 0) < h.latest;
+          const ozel = ozelIstemciMi(c);
+          const onarKomut = onarKomutuMetni(c);
+          return `<tr>
           <th scope="row"><form class="satir-ici-form" data-cihaz-ad="${esc(c.id)}" aria-label="${esc(c.label)} adını değiştir">
             <label class="visually-hidden" for="ca-${esc(c.id)}">Bilgisayar adı</label>
             <input id="ca-${esc(c.id)}" name="label" type="text" maxlength="40" required value="${esc(c.label)}">
             <button type="submit" class="btn btn-plain btn-sm">Adı kaydet</button></form>
             <small class="muted">${[c.os, c.client_ver ? `v${c.client_ver}` : "", c.id.slice(0, 8)].filter(Boolean).map(esc).join(" · ")}</small></th>
-          <td class="muted">${esc(ago(c.last_seen, h.now).t)}</td>
-          <td><button type="button" class="btn btn-danger btn-sm" data-cihaz-sil="${esc(c.id)}" data-cihaz-etiket="${esc(c.label)}">Kaldır</button></td>
-        </tr>`).join("")}</tbody></table></div>` : `<p class="muted">Henüz bağlı bilgisayarın yok.</p>`}
+          <td class="muted">${esc(ago(c.last_seen, h.now).t)}${ozel ? `<br><span class="warn">Özel betik — Terminal'de onarın</span>` : guncelDegil ? `<br><span class="warn">Güncel değil (v${c.client_ver} → v${h.latest})</span>` : ""}</td>
+          <td><div style="display:flex;gap:6px;flex-wrap:wrap">${(ozel || guncelDegil) ? `<button type="button" class="btn btn-plain btn-sm" data-onar-kopyala="${esc(onarKomut)}" title="Terminal/PowerShell onarım komutunu kopyala">Onar komutu</button>` : ""}<button type="button" class="btn btn-danger btn-sm" data-cihaz-sil="${esc(c.id)}" data-cihaz-etiket="${esc(c.label)}">Kaldır</button></div></td>
+        </tr>`;
+        }).join("")}</tbody></table></div>` : `<p class="muted">Henüz bağlı bilgisayarın yok.</p>`}
       <p class="kayit-durum" id="c-durum" role="status" aria-live="polite"></p>
       <h3 style="margin:18px 0 8px;font-size:15px">Bilgisayar ekle</h3>
       <form id="f-kod" class="addrow" method="POST" action="/api/hesap/kod">
@@ -2806,6 +2814,7 @@ async function pageHesabim() {
       <div class="durum-satir" style="margin-top:0"><button type="button" class="btn btn-plain" id="btn-oturum">Diğer tüm oturumlarımı kapat</button><span class="kayit-durum" id="o-durum" role="status" aria-live="polite"></span></div>
     </section>`, { authed: true });
   sifreGosterBagla();
+  onarKopyalaBagla();
 
   $("#f-profil").onsubmit = async (e) => {
     e.preventDefault();
@@ -5552,7 +5561,7 @@ const supheliOfisEtiketi = (dev) => {
 function kontrolBolumu(dev, d) {
   const f = flagsOf(dev);
   const uyarilar = kontrolBayraklari(dev);
-  const ayriHesaplar = f.filter((x) => x && (x.s === "b" || (typeof x.k === "string" && x.k.startsWith("farkli_hesap_"))));
+  const ayriHesaplar = f.filter((x) => x && x.k !== "ozel_istemci" && (x.s === "b" || (typeof x.k === "string" && x.k.startsWith("farkli_hesap_"))));
   if ((dev.client_ver || 0) < 4 && !uyarilar.length && !ayriHesaplar.length) {
     return `<p class="muted">Kontroller, göndericinin 4. sürümüyle başlar${(dev.client_ver || 0) ? "; bu bilgisayar kendiliğinden güncellenecek" : "; bu bilgisayarın göndericisi elle yenilenmeli"}.</p>`;
   }
@@ -5570,6 +5579,47 @@ function kontrolBolumu(dev, d) {
 }
 const UYGULAMA_SURUM = 11; // ilk derlenmiş uygulama sürümü; öncesi Python göndericiydi
 const isOld = (dev, d) => (dev.client_ver || 0) < d.latest;
+const ozelIstemciMi = (dev) => !!(dev && (dev.ozel_istemci || flagsOf(dev).some((f) => f && f.k === "ozel_istemci")));
+const onarKomutuMetni = (dev) => (dev && dev.os === "Windows")
+  ? `& ([scriptblock]::Create((irm ${ORIGIN}/kur.ps1)))`
+  : `curl -fsSL ${ORIGIN}/kur.sh | sh`;
+function onarKutuHTML(dev, d) {
+  const ozel = ozelIstemciMi(dev);
+  const eski = isOld(dev, d);
+  if (!ozel && !eski) return "";
+  const komut = onarKomutuMetni(dev);
+  const terminalAd = dev && dev.os === "Windows" ? "PowerShell" : "Terminal";
+  if (ozel) {
+    return `<div class="codebox" style="margin-top:12px">
+      <p class="warn" style="margin:0 0 6px"><b>Özel betik algılandı — otomatik güncellenemez:</b> Bu bilgisayarda resmî imzalı gönderici yerine elle/yapay zekâ tarafından oluşturulmuş özel bir gönderici betiği çalışıyor.</p>
+      <p class="muted" style="margin:0 0 8px;font-size:12.5px">Eşleşme kodu gerekmez; geçmiş veriler ve cihaz kimliği korunur. Aşağıdaki tek satırı <b>yapay zekâ sohbetine değil</b>, doğrudan o bilgisayarın kendi <b>${terminalAd}</b> uygulamasına yapıştırıp çalıştırın:</p>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><code style="flex:1;min-width:220px;user-select:all">${esc(komut)}</code><button type="button" class="btn btn-ink btn-sm" data-onar-kopyala="${esc(komut)}">Komutu kopyala</button></div>
+    </div>`;
+  }
+  if ((dev.client_ver || 0) >= UYGULAMA_SURUM) {
+    return `<div style="margin-top:10px">
+      <p class="warn" style="margin:0 0 6px">Bu bilgisayarın uygulaması güncel değil (v${dev.client_ver} → v${d.latest}); çevrimiçi olduğunda 5 dakika içinde kendiliğinden güncellenir.</p>
+      <details style="font-size:12.5px"><summary class="muted" style="cursor:pointer">5 dakikadan uzun süredir güncellenmediyse tek komutla onar (kod gerekmez)</summary>
+        <p class="muted" style="margin:6px 0">Doğrudan o bilgisayarın kendi <b>${terminalAd}</b> uygulamasında çalıştırın (yapay zekâ sohbetine yapıştırmayın):</p>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><code style="flex:1;min-width:220px;user-select:all">${esc(komut)}</code><button type="button" class="btn btn-plain btn-sm" data-onar-kopyala="${esc(komut)}">Kopyala</button></div>
+      </details>
+    </div>`;
+  }
+  return `<p class="warn" style="margin-top:10px">Bu bilgisayarda eski gönderici var ve kendiliğinden yeni uygulamaya geçemez. Doğrudan <b>${terminalAd}</b> uygulamasında <code>${esc(komut)}</code> çalıştırın veya yeniden eşleştirin.</p>`;
+}
+function onarKopyalaBagla(kok = document) {
+  kok.querySelectorAll("[data-onar-kopyala]").forEach((btn) => {
+    btn.onclick = async () => {
+      const metin = btn.getAttribute("data-onar-kopyala") || "";
+      const ilk = btn.textContent;
+      try {
+        await navigator.clipboard.writeText(metin);
+        btn.textContent = "Kopyalandı";
+        setTimeout(() => { btn.textContent = ilk; }, 1800);
+      } catch {}
+    };
+  });
+}
 const OS_ETIKET = { Darwin: "macOS", Windows: "Windows", Linux: "Linux" };
 const osEtiket = (dev) => (Object.hasOwn(OS_ETIKET, dev.os) ? OS_ETIKET[dev.os] : "");
 const FABLE_RE = /fable/i;
@@ -6558,7 +6608,7 @@ async function pageDevice(id) {
     </section>
     <section class="card" aria-labelledby="h-ad"><h2 id="h-ad">Bilgisayar ayarları ve kontroller</h2>
       <form class="rename" id="rn"><label class="visually-hidden" for="ad">Bilgisayar adı</label><input id="ad" type="text" maxlength="40" value="${esc(dev.label)}"><button class="btn btn-plain" type="submit">Kaydet</button></form><p class="err" id="rne" role="alert"></p>
-      ${kontrolBolumu(dev, d)}${isOld(dev, d) ? `<p class="warn" style="margin-top:10px">${(dev.client_ver || 0) >= UYGULAMA_SURUM ? "Bu bilgisayarın uygulaması güncel değil; 5 dakika içinde kendiliğinden güncellenecek." : "Bu bilgisayarda eski gönderici var ve kendiliğinden yeni uygulamaya geçemez. Eskisini kaldırıp Kurulum sayfasındaki komutla yeniden kur."}</p>` : ""}<p class="muted" style="margin-top:12px;margin-bottom:0">Eklendi: ${dLong(dev.created_at)}. ${osEtiket(dev) ? `İşletim sistemi: ${osEtiket(dev)}. ` : ""}Kimlik: ${dev.id.slice(0, 8)}. ${(dev.client_ver || 0) ? (dev.client_ver >= d.latest ? `Uygulama sürümü v${dev.client_ver}, güncel.` : `Gönderici sürümü v${dev.client_ver}; güncel sürüm v${d.latest}.`) : "Gönderici sürümü henüz bildirilmedi."}</p></section>
+      ${kontrolBolumu(dev, d)}${onarKutuHTML(dev, d)}<p class="muted" style="margin-top:12px;margin-bottom:0">Eklendi: ${dLong(dev.created_at)}. ${osEtiket(dev) ? `İşletim sistemi: ${osEtiket(dev)}. ` : ""}Kimlik: ${dev.id.slice(0, 8)}. ${(dev.client_ver || 0) ? (dev.client_ver >= d.latest ? `Uygulama sürümü v${dev.client_ver}, güncel.` : `Gönderici sürümü v${dev.client_ver}; güncel sürüm v${d.latest}.`) : "Gönderici sürümü henüz bildirilmedi."}</p></section>
     <section class="card" aria-labelledby="h-har"><h2 id="h-har">Hariç tutulan oturumlar</h2>
       <p class="muted">Bu oturumun kullanımı bu bilgisayarın toplamlarına ve grafiklerine sayılmaz. Kayıt sunucuda durur, geri alabilirsin.</p>
       <form id="hf" class="addrow" style="margin-top:12px"><div><label for="ho">Oturum kimliği</label><input id="ho" type="text" placeholder="Örn. 0f1e2d3c-…" maxlength="36" required></div><div><label for="hn">Not</label><input id="hn" type="text" maxlength="140" placeholder="İsteğe bağlı"></div><button class="btn btn-plain" type="submit">Hariç tut</button></form>
@@ -6568,6 +6618,7 @@ async function pageDevice(id) {
     <div class="danger-zone"><h2>Bilgisayarı kaldır</h2><p>Bu bilgisayarın tüm geçmiş verisi silinir ve gönderimleri artık kabul edilmez. Geri alınamaz.</p>
       <button class="btn btn-danger" type="button" id="del">Bilgisayarı kaldır</button></div>`, { authed: true });
   wireChart(d, id);
+  onarKopyalaBagla();
   const hf = $("#hf");
   if (hf) hf.onsubmit = async (e) => {
     e.preventDefault(); $("#hfe").textContent = "";
@@ -6676,7 +6727,7 @@ async function pageDevices() {
         return `<tr>
           <td><a href="${urlKur(`/pano/bilgisayar/${x.id}`)}" data-link>${esc(x.label)}</a><small>${[osEtiket(x), x.client_ver ? `v${x.client_ver}` : "", x.id.slice(0, 8)].filter(Boolean).join(" · ")}</small>${rozetler ? `<div class="hesap-rozetler">${rozetler}</div>` : ""}</td>
           <td class="usd">${money(per.get(x.id) || 0)}</td>
-          <td class="${live.has(x.id) ? "" : a.stale ? "warn" : "muted"}">${live.has(x.id) ? `<span class="pill pill-ok">şu an çalışıyor</span>` : esc(a.t)}${isOld(x, d) ? `<br><span class="warn">Gönderici güncel değil</span>` : ""}${isSus(x) ? `<br><span class="bad">Şüpheli${supheliOfisEtiketi(x) ? ` (${esc(supheliOfisEtiketi(x))})` : ""}: ayrıntı için aç</span>` : isWarn(x) ? `<br><span class="warn">Dikkat edilecek ayar var</span>` : ""}</td>
+          <td class="${live.has(x.id) ? "" : a.stale ? "warn" : "muted"}">${live.has(x.id) ? `<span class="pill pill-ok">şu an çalışıyor</span>` : esc(a.t)}${ozelIstemciMi(x) ? `<br><span class="warn">Özel betik · Elle onarım gerekli</span>` : isOld(x, d) ? `<br><span class="warn">Gönderici güncel değil</span>` : ""}${isSus(x) ? `<br><span class="bad">Şüpheli${supheliOfisEtiketi(x) ? ` (${esc(supheliOfisEtiketi(x))})` : ""}: ayrıntı için aç</span>` : isWarn(x) ? `<br><span class="warn">Dikkat edilecek ayar var</span>` : ""}</td>
           <td class="muted hide-sm">${dLong(x.created_at)}</td></tr>`;
       }).join("") || `<tr><td colspan="4" class="empty">Henüz bilgisayar yok. Aşağıdan bir eşleşme kodu üret.</td></tr>`}</tbody></table></div>
     </section>

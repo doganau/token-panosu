@@ -1,9 +1,10 @@
-﻿# Token Panosu kurulumu (Windows, PowerShell)
-#   & ([scriptblock]::Create((irm https://pano.ornek.com/kur.ps1))) -Kod XXXXX-XXXXX
+﻿# Token Panosu kurulumu ve onarımı (Windows, PowerShell)
+#   Yeni kurulum: & ([scriptblock]::Create((irm https://pano.ornek.com/kur.ps1))) -Kod XXXXX-XXXXX
+#   Onarım/güncelleme (kod gerekmez): & ([scriptblock]::Create((irm https://pano.ornek.com/kur.ps1)))
 # Bu bilgisayara uygun tek dosyalık programı indirir, özetini doğrular, %USERPROFILE%\.token-panosu
 # içine koyar ve eşleştirmeyi yapar. Python ya da başka bir şey kurmaz.
 param(
-  [Parameter(Mandatory = $true)][string]$Kod,
+  [Parameter(Mandatory = $false)][string]$Kod = "",
   [string]$Adres = $(if ($env:TOKEN_PANOSU_ADRES) { $env:TOKEN_PANOSU_ADRES } else { "https://pano.ornek.com" })
 )
 $ErrorActionPreference = "Stop"
@@ -29,5 +30,9 @@ if (-not $Beklenen -or $Beklenen -ne $Bulunan) {
 Move-Item -Force $Gecici $Exe
 
 # Program pencere açmadan çalışacak biçimde derlendi; çıktısını görmek için boruya yönlendiriyoruz
-& $Exe kur --url $Adres --kod $Kod 2>&1 | Out-Host
+if ($Kod -and $Kod.Trim() -ne "") {
+  & $Exe kur --url $Adres --kod $Kod 2>&1 | Out-Host
+} else {
+  & $Exe onar --url $Adres 2>&1 | Out-Host
+}
 exit $LASTEXITCODE
